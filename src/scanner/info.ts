@@ -51,3 +51,7 @@ export async function getScannerInfo(config: Config, force = false): Promise<Sca
   return info;
 }
 
+/** Clears the cached probe after a scan has populated the scanner cache. */
+export function invalidateScannerInfo(): void {
+  cached = null;
+}

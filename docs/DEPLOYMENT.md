@@ -8,8 +8,8 @@ reverse-proxying it, upgrading, backing up and troubleshooting.
 - Docker Engine 20.10+ and the Compose plugin.
 - A writable data directory for the database, encryption key, Trivy cache and scan scratch space.
 - Outbound HTTPS to `ghcr.io/aquasec/trivy-db` (Trivy database) and `www.cisa.gov` (optional KEV feed).
-- Disk headroom: the Trivy database (tens of MiB) plus temporary image archives up to
-  `MAX_IMAGE_EXPORT_BYTES` (default 8 GiB) per concurrent scan.
+- Disk headroom: the Trivy cache grows to roughly 1–2 GiB after standard scans (the Java index is
+  large), plus temporary image archives up to `MAX_IMAGE_EXPORT_BYTES` (default 8 GiB) per concurrent scan.
 - CPU/RAM: 1–2 vCPU and 1–2 GiB are enough for a small home lab; memory rises while Trivy unpacks large
   images. Two concurrent scans are the default.
 
@@ -45,9 +45,10 @@ the socket's group:
 stat -c '%g' /var/run/docker.sock
 ```
 
-Set `DOCKER_GID` in `.env` to that value, then recreate the container. If the socket is owned by
-`root:root` with mode `0660`, using this non-root approach is not possible without changing host
-permissions or using a socket proxy; do not "fix" it by making the socket world-writable.
+Set `DOCKER_GID` in `.env` to that value, then recreate the container. Docker Desktop on Windows/macOS
+presents the socket as `root:root` mode `0660`; for local testing use `PUID=10001 PGID=0` (or
+`--group-add 0`). On Linux hosts, if the socket is owned by `root:root` with mode `0660` and you do not
+want to run with GID 0, use a socket proxy instead. Do not "fix" it by making the socket world-writable.
 
 ### Volumes
 
@@ -267,30 +268,45 @@ implies control of the instance.
 | Alerts pending with "notifications disabled" | Configure and enable ntfy in Notifications; pending alerts are retried once configured. |
 | Alerts failed with HTTP 401/403 | Wrong ntfy token/credentials or topic permissions. Use Test delivery. |
 | Login says "Too many attempts" | Per-IP limiter. Wait five minutes; restart clears the in-memory counter. |
-| Disk fills during scans | Lower `MAX_IMAGE_EXPORT_BYTES`, reduce concurrency, clean `/data/tmp`, ensure scans are not repeatedly retrying a huge image. |
+| Disk fills during scans | Lower `MAX_IMAGE_EXPORT_BYTES`, reduce concurrency, clean `/data/tmp`, ensure scans are not repeatedly retrying a huge image. Note the Trivy cache can reach ~1–2 GiB after standard scans. |
 | Stale results everywhere | Endpoint unreachable or scans failing. Check Environments, Scan activity and scanner database status. |
 | UI shows old assets after upgrade | The SPA entry is served with `no-cache`; hard-refresh once if a proxy overrode cache headers. |
 
 ## Verifying the production image locally
 
-Docker was not available in the environment where this project was built, so the container itself has
-not been smoke-tested. On a Docker host, run:
+This was executed on Docker Desktop 4.96.2 / Engine 29.9.2 (linux/amd64) during development:
+
+| Check | Observed result |
+| --- | --- |
+| Image build (`docker buildx build --platform linux/amd64 --load`) | Succeeded; `docker buildx build --check` reported no warnings |
+| Container health | `healthy`; `/api/health` returned 200 |
+| Process privileges | PID 1 `tini` root; application ran as UID 10001 (`node src/index.ts`); data owned by 10001 |
+| Scanner | Bundled Trivy 0.75.0; database downloaded during the first scan and persisted in the volume |
+| Docker discovery | 2 containers / 2 images from the live Docker Desktop engine |
+| Real image scan | `nginx:1.19-alpine`: 96 findings (9 critical, 52 high, 29 medium, 6 low, 96 fixable); 14.4 s cold, 0.19 s warm |
+| Re-scan stability | Same image ID: 96 open findings, **0 resolved/recreated** |
+| Alerting | Grouped ntfy alert for 9 critical/52 high delivered (test notification also delivered) |
+| Restart | 371 findings, 3 scans, 3 delivered alerts and the authenticated session persisted |
+| Graceful shutdown | `SIGTERM` handled, container exited 0 |
+| Interrupted scan | Scan aborted by shutdown was requeued and completed with attempts=2; findings unchanged |
+
+The container was started for that test with the Docker Desktop socket (`PGID=0` so the non-root process
+can read `root:root 0660`):
 
 ```bash
-docker build -t docksentinel:local .
-docker run --rm -d --name docksentinel-test \
+docker buildx build --platform linux/amd64 --load -t docksentinel:local .
+docker run -d --name docksentinel-test \
   -p 18080:8080 \
   -v docksentinel-test-data:/data \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+  -e SETUP_TOKEN=smoke-test-token \
+  -e PUID=10001 -e PGID=0 \
   docksentinel:local
-curl -fsS http://127.0.0.1:18080/api/health
-docker logs docksentinel-test | grep -i "setup token"
-# complete setup in the browser, add the local socket, confirm a scan completes:
-curl -fsS http://127.0.0.1:18080/api/health
-docker exec docksentinel-test trivy --version
-docker stop docksentinel-test
-docker rmi docksentinel:local
 ```
 
-Record the results before publishing an image.
+On Linux or Unraid, replace `PGID=0` with the socket's group
+(`stat -c '%g' /var/run/docker.sock`) or use a socket proxy. Repeat the smoke test after changing the
+Dockerfile or Trivy version; record the outcome before publishing an image.
+
+The UI was also driven against that live instance with Playwright and rendered correctly
+(`test-results/screens/real-overview.png`, `real-vulnerabilities.png`, `real-images.png`).

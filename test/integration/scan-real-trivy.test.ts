@@ -164,6 +164,42 @@ test('real Trivy produces normalised findings for a docker-save image', { skip: 
   assert.ok(docker.requests.every((request) => request.method === 'GET'));
 });
 
+test('rescanning the same image is stable and does not recreate findings', { skip: !canRun }, async () => {
+  const queued = await harness.app.inject({
+    method: 'POST',
+    url: `/api/images/${encodeURIComponent(imageId)}/scan`,
+    headers: authHeaders(harness, true),
+    payload: { profile: 'standard' },
+  });
+  assert.equal(queued.statusCode, 202, queued.body);
+  const scan = await waitForScan(harness.app, authHeaders(harness), queued.json<{ scanId: number }>().scanId);
+  assert.equal(scan.status, 'success', JSON.stringify(scan));
+
+  const all = await harness.app.inject({
+    method: 'GET',
+    url: `/api/findings?imageId=${encodeURIComponent(imageId)}&state=all&pageSize=100`,
+    headers: authHeaders(harness),
+  });
+  const open = await harness.app.inject({
+    method: 'GET',
+    url: `/api/findings?imageId=${encodeURIComponent(imageId)}&state=open&pageSize=100`,
+    headers: authHeaders(harness),
+  });
+  const resolved = await harness.app.inject({
+    method: 'GET',
+    url: `/api/findings?imageId=${encodeURIComponent(imageId)}&state=resolved&pageSize=100`,
+    headers: authHeaders(harness),
+  });
+  const allBody = all.json<{ total: number; items: { target: string }[] }>();
+  assert.ok(allBody.total > 30);
+  assert.equal(resolved.json<{ total: number }>().total, 0, 'a clean rescan must not resolve and recreate the same findings');
+  assert.equal(allBody.total, open.json<{ total: number }>().total);
+  assert.ok(
+    allBody.items.every((finding) => !finding.target.startsWith('/') && finding.target.startsWith('image.tar')),
+    'finding targets must not depend on the random scan scratch directory',
+  );
+});
+
 test('a failed scan keeps previous findings and never reports a clean image', { skip: !canRun }, async () => {
   const before = await harness.app.inject({
     method: 'GET',

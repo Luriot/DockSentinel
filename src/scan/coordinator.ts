@@ -18,6 +18,7 @@ import {
   type ScanTrigger,
 } from '../repo/scans.ts';
 import { ScannerError, TrivyAdapter, type ScanProfile, type ScannerRunResult } from '../scanner/trivy.ts';
+import { invalidateScannerInfo } from '../scanner/info.ts';
 import { recoverInterruptedScans } from './recovery.ts';
 import type { AlertService } from '../notify/service.ts';
 import type { AppSettings } from '../repo/settings.ts';
@@ -276,7 +277,6 @@ export class ScanCoordinator {
       archivePath,
       workDir,
       profile: scan.profile,
-      expectedImageId: scan.imageId,
       signal,
     });
   }
@@ -304,6 +304,7 @@ export class ScanCoordinator {
       return applied;
     });
 
+    invalidateScannerInfo();
     const updated = getScan(this.db, scan.id) ?? scan;
     this.log.info(
       {
@@ -335,7 +336,7 @@ export class ScanCoordinator {
       return;
     }
 
-    const code = this.stopped && info.code === 'cancelled' ? 'interrupted' : info.code;
+    const code = this.stopped ? 'interrupted' : info.code;
     const canRetry = RETRIABLE.has(code) && scan.attempts <= settings.scanFailureRetries;
     const retryAt = canRetry ? (this.stopped ? nowIso() : isoAfter(retryDelayMs(scan.attempts))) : null;
     markScanFailed(this.db, scan.id, {

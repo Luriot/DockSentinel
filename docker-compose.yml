@@ -32,4 +32,5 @@ services:
     group_add:
       # GID that owns /var/run/docker.sock. Find it with:
       #   stat -c '%g' /var/run/docker.sock
+      # Docker Desktop reports 0; Unraid commonly uses the "users" group.
       - '${DOCKER_GID:-999}'

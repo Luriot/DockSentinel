@@ -1,11 +1,13 @@
 # DockSentinel handoff
 
-Status: **implementation complete for the MVP scope, verified locally, not yet container-smoke-tested or
-published.** This document states exactly what exists, what was executed, and what remains.
+Status: **MVP implemented and verified locally, including a production container build, live Docker
+Desktop discovery/scan, ntfy delivery, restart persistence and interrupted-scan recovery. Not published.**
+This document states exactly what exists, what was executed, and what remains.
 
-Built on 2026-10-22 with Node.js 26.4.0, Trivy 0.75.0, Playwright/Chromium 156 and npm 11 on Windows.
-Docker Engine and the GitHub CLI were **not installed** in the build environment, so no real Docker daemon,
-container build or remote publication was exercised. The workaround for that is described below.
+Built on 2026-10-22 with Node.js 26.4.0, Trivy 0.75.0, Docker Desktop 4.96.2 (Linux Engine 29.9.2),
+GitHub CLI 2.103.0 and Playwright/Chromium 156 on Windows. Docker and `gh` became available after the
+initial implementation, so the image and live Docker integration were verified afterwards. There is no git
+remote and nothing was pushed or published.
 
 ## What was implemented
 
@@ -127,7 +129,7 @@ npm install
 npm run dev                 # API plus the last built UI on :8080 (use dev:web for SPA hot reload)
 npm run dev:web             # Vite on :5173, proxies /api to :8080
 npm run typecheck
-npm test                    # 62 unit + integration tests
+npm test                    # 63 unit + integration tests
 npx playwright install chromium
 npm run test:ui             # 11 browser tests (builds the SPA automatically if missing)
 npm run build               # typecheck + production SPA
@@ -141,12 +143,46 @@ scanner reads a deterministic synthetic `docker save` archive.
 First run: obtain the setup token from the logs (or set `SETUP_TOKEN`), then open the UI, create the
 administrator, add an endpoint and wait for discovery/scan.
 
+## Production container verification (Docker Desktop, executed)
+
+Commands used:
+
+```bash
+docker buildx build --platform linux/amd64 --load -t docksentinel:local .
+docker run -d --name docksentinel-smoke -p 18080:8080 \
+  -v docksentinel-smoke-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -e SETUP_TOKEN=smoke-test-token -e PUID=10001 -e PGID=0 docksentinel:local
+```
+
+`PGID=0` is Docker Desktop–specific: its Linux socket is `root:root` mode `0660`, while the application
+process runs as UID 10001.
+
+| Check | Observed |
+| --- | --- |
+| Dockerfile build + `buildx --check` | Build succeeded, no warnings |
+| Container startup / health | Healthy; `/api/health` 200; bundled Trivy 0.75.0 detected; KEV synced (1754 entries) |
+| Process privileges | `tini` as PID 1, application as UID 10001; data files owned by 10001 |
+| Discovery | 2 live containers / 2 images, including DockSentinel itself |
+| Real image scan | `nginx:1.19-alpine`: 96 findings (9 critical, 52 high, 29 medium, 6 low; 96 fixable); 14.4 s cold, 0.19 s warm |
+| Re-scan stability | Same image: 96 open, **0 resolved/recreated**, target `image.tar (alpine 3.13.5)` |
+| ntfy delivery | Test notification and grouped “9 critical, 52 high” alert delivered |
+| Restart | 371 findings, 3 scans, 3 sent alerts and the authenticated session persisted |
+| Graceful shutdown | `SIGTERM` handled; container exited 0 |
+| Interrupted scan | Aborted by stop, requeued on start, completed with attempts=2; findings unchanged |
+| UI against live data | Playwright login/navigation/screenshots succeeded (`test-results/screens/real-*.png`) |
+
+This live run found one real bug that the fixture suite had missed: Trivy copies the `--input` path into
+`Result.Target`, and the scan scratch directory is random, so re-scans produced different finding identities
+(96 resolved + 96 appeared on an unchanged image). It was fixed by running Trivy from the scratch directory
+with a relative archive name (plus a defensive prefix strip) and is covered by a new regression test.
+
 ## Actual results (executed, not assumed)
 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passed (strict, `noUnusedLocals`, backend + web) |
-| `npm test` | **62/62 passing** in ~48 s |
+| `npm test` | **63/63 passing** in ~47 s |
 | Real Trivy end-to-end test | Passed; synthetic Debian 11 image produced **61 findings** (3 critical, 10 high, 26 medium, 20 low, 2 unknown); failure-preservation and cleanup assertions passed |
 | Docker discovery tests | Passed: 3 containers, 2 images, `0.0.0.0:8080` → potential exposure, declared label → confirmed, stopped → unknown, non-DockSentinel labels discarded, independent endpoint failure, only GET requests |
 | Notification tests | Passed: one grouped alert per scan, dedupe, ntfy Bearer header, retry/backoff, test success/failure, disabled mode |
@@ -160,7 +196,11 @@ administrator, add an endpoint and wait for discovery/scan.
 | Password reset script | Verified: new password accepted, old rejected, sessions invalidated |
 | `npm audit` (prod and all) | 0 vulnerabilities at verification time |
 | Workflow YAML | Parsed and structurally checked; **not executed** |
-| Production container build/smoke test | **Not run — Docker was unavailable** |
+| Production image build | Passed on Docker Desktop (linux/amd64); `buildx --check` clean |
+| Live Docker discovery/scan | Passed against Docker Desktop 29.9.2; real nginx image, 96 findings; only GET API calls |
+| Container lifecycle | Healthcheck, non-root app user, graceful SIGTERM exit 0, restart persistence, interrupted-scan requeue verified |
+| Live ntfy delivery | Test + real finding alert received by a local receiver; dedupe/retry covered by tests |
+| Arm64 build | **Not executed**; base images support arm64, workflow not run |
 
 Screenshots from the UI test run (not committed): `test-results/screens/01-overview.png` … `09-setup-empty.png`.
 
@@ -178,8 +218,13 @@ Screenshots from the UI test run (not committed): `test-results/screens/01-overv
   than silently trusted.
 - No per-action audit log beyond scans, finding events, alerts and request logs.
 - Docker socket access is effectively host-root. The Compose file mounts it read-only, which does not make
-  the API read-only. Prefer a socket group/socket proxy or TLS endpoints.
-- TLS endpoints were not validated against a real Docker daemon in this environment.
+  the API read-only. Prefer a socket group/socket proxy or TLS endpoints. Docker Desktop requires GID 0 for
+  the socket; Linux/Unraid hosts use their socket's group.
+- Only Docker Desktop's local Unix socket was exercised. Mutual-TLS remote endpoints and an actual Unraid
+  Docker Engine were **not** validated against real daemons.
+- Image IDs are whatever `/images/json` reports. On containerd-backed engines this is the manifest digest,
+  while Trivy reports the config digest; DockSentinel attributes by the requested image ID and documents
+  the difference. The same image on differently-backed hosts may therefore be scanned twice.
 - The scanner binary is trusted; replacing it on a custom image would defeat result integrity.
 - The setup token is printed to logs once; protect log access.
 - Backups contain encrypted secrets plus the key; they must be protected.
@@ -211,7 +256,7 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 - Full instructions, env var table, reverse proxy examples, socket permissions, remote TLS and
   troubleshooting: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and [`docs/UNRAID.md`](docs/UNRAID.md).
 
-**No real Docker host was contacted. No production credentials were requested or used.**
+**Only the local Docker Desktop engine was used. No Unraid server or production credentials were contacted.**
 
 ## GHCR workflow status
 
@@ -222,29 +267,26 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
   - GHCR tags from metadata-action (branch, semver, sha, latest on default branch);
   - BuildKit SBOM and maximum provenance, plus a registry-pushed provenance attestation;
   - GitHub Actions build cache and a concurrency group.
-- **It has never run and nothing has been pushed or published.** There is no git remote, and `gh` was not
-  installed in this environment. No image exists in GHCR as a result of this work.
+- `gh` is installed and authenticated (`Luriot`), but **no GitHub repository or git remote exists** for this
+  project and the workflow has **never run**. Nothing was pushed or published; no GHCR image exists as a
+  result of this work.
 - The Compose file and Unraid template contain `OWNER` placeholders for the image namespace.
 
 ## Exact actions still required from the user
 
-1. **Container smoke test** (Docker required; see `docs/DEPLOYMENT.md#verifying-the-production-image-locally`):
-   build the image, start it with a data volume and the socket, complete setup, add the local endpoint,
-   confirm discovery + a successful scan, confirm the health endpoint and restart the container to verify
-   persistence. Record the results.
-2. **Real Docker endpoint validation**: test the Unix socket and a mutual-TLS remote endpoint against actual
-   Docker hosts (including Unraid). Verify socket group permissions and update the template/Compose docs if
-   the observed GIDs differ.
-3. **Create the GitHub repository and set the remote**, then replace `OWNER` in
-   `docker-compose.yml` and `unraid/docksentinel.xml` with the actual namespace (the workflow derives
-   `ghcr.io/<owner>/<repo>` automatically).
-4. **Review the image tag/version policy** (`ghcr.io/...:latest`, semver tags) and decide whether `latest`
-   should be published from `main` automatically.
-5. **Add a licence** if the project will be distributed.
-6. **Approve the first push/publish**: the user must explicitly authorise pushing commits, creating the
-   remote repository, and running the publishing workflow. This handoff did neither.
-7. Optionally add a CI test workflow if wanted; deliberately not added to avoid unnecessary Actions runs
-   and because the publishing workflow was required to be the final phase.
+1. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
+   socket group IDs and update the Compose/template defaults if they differ from the documented guidance.
+2. **Create the GitHub repository and set the remote**, then replace `OWNER` in `docker-compose.yml` and
+   `unraid/docksentinel.xml` with the actual namespace (the workflow derives `ghcr.io/<owner>/<repo>`
+   automatically).
+3. **Review the image tag/version policy** (`:latest`, semver tags) and decide whether `latest` should be
+   published from `main` automatically.
+4. **Add a licence** if the project will be distributed.
+5. **Approve the first push and publish**: explicitly authorise pushing commits, creating the remote
+   repository, and running the workflow. After the first run, verify the GHCR tags, SBOM/provenance and the
+   linux/arm64 image. This handoff did neither.
+6. Optionally add a CI test workflow and an arm64 build check; deliberately not added to avoid unnecessary
+   Actions runs and because the publishing workflow was required to be the final phase.
 
 ## Notable decisions and deviations
 
@@ -254,7 +296,11 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
   intentional for credential isolation and uniform TLS, and it is bounded by an export-size limit.
 - The CISA KEV integration is a small JSON fetch into SQLite, because Trivy's image JSON does not include
   KEV membership. It is enrichment only and fails soft.
-- The browser UI was tested against seeded SQLite data and a locally started production build, not against
-  Docker. Backend integration tests use real Trivy with a synthetic image archive and a fake Docker API.
-- The Dockerfile could not be built here; its base tags and Trivy version were verified to exist for both
-  amd64 and arm64, but the build itself is unverified.
+- The browser UI was tested both against seeded SQLite data and against the live container instance with
+  real Docker findings. Backend integration tests use real Trivy with a synthetic image archive and a fake
+  Docker API.
+- The production Dockerfile was built and smoke-tested on Docker Desktop (linux/amd64). The linux/arm64
+  build was not executed; the chosen base images publish arm64 manifests.
+- Real Docker validation changed the result of the scanner integration: findings are now keyed by stable
+  target names (`image.tar (alpine 3.13.5)`) instead of the random archive path, and Docker/Trivy image ID
+  differences are no longer treated as errors. Both behaviours have regression coverage/documentation.

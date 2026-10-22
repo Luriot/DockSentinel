@@ -94,9 +94,11 @@ transactions cannot interleave with other writers.
 Finding identity is `(image_id, target, vuln_id, pkg_name, installed_version)`. `episode` increments
 when a resolved finding reappears, which keeps alert dedupe keys meaningful across episodes.
 
-Image identity is the Docker image ID (the config digest), not a tag. Tags move; image IDs do not.
-Repository digests are stored for display and are preferred for export/scan targets where available,
-but the archive is always requested by image ID.
+Image identity is the Docker image ID reported by the API (`/images/json`), not a tag. Tags move; image
+IDs do not. On containerd-backed engines this ID is the manifest digest, while Trivy reports the config
+digest from the exported archive; DockSentinel attributes findings to the ID it requested from Docker and
+does not treat that difference as an error. Repository digests are stored for display; the archive is
+always requested by the immutable image ID.
 
 ## Discovery flow
 

@@ -50,7 +50,8 @@ Docker endpoints ──► discovery ──► image scan (Trivy) ──► norm
 ## Quick start (Docker Compose)
 
 Requirements: Docker Engine with the Compose plugin, outbound HTTPS for Trivy database and KEV
-updates, and a writable appdata directory.
+updates, and a writable appdata directory. Expect roughly 1–2 GiB of Trivy cache after standard scans
+(the Java index is large); budget disk accordingly.
 
 ```bash
 cp .env.example .env
@@ -66,7 +67,8 @@ queued automatically.
 The socket is mapped read-only, but Docker access is still **effectively host-root**. Read the
 [Docker security notes](docs/SECURITY.md#docker-socket-access) before deploying on a host that matters.
 If discovery fails with permission denied, add the socket's group ID (`stat -c '%g' /var/run/docker.sock`)
-to `DOCKER_GID` before starting.
+to `DOCKER_GID` before starting. Docker Desktop (Windows/macOS) presents the Linux socket as
+`root:root` mode `0660`, so local testing needs `DOCKER_GID=0` or `--group-add 0`.
 
 See [Deployment](docs/DEPLOYMENT.md) for reverse proxies, remote TLS endpoints, upgrades, backups and
 troubleshooting, and [Unraid](docs/UNRAID.md) for the Unraid template.
@@ -141,20 +143,26 @@ Container permissions: `PUID`/`PGID` control the runtime user (default `10001`),
 
 ## Verification status
 
-Last verified on 2026-10-22 with Node.js 26.4.0 (Windows), Trivy 0.75.0 and Chromium 156:
+Last verified on 2026-10-22 with Node.js 26.4.0 (Windows), Docker Desktop 4.96.2 / Engine 29.9.2,
+Trivy 0.75.0 and Chromium 156:
 
-- `npm test` — **62 tests passing** (unit + integration).
+- `npm test` — **63 tests passing** (unit + integration), including a rescan-stability regression test.
 - Real Trivy end-to-end test — synthetic Debian 11 image produced **61 findings** (3 critical, 10 high,
-  26 medium, 20 low, 2 unknown); normalisation, priority tiers, failure preservation and archive cleanup
-  asserted.
+  26 medium, 20 low, 2 unknown); normalisation, priority tiers, failure preservation and cleanup asserted.
 - `npm run typecheck` — backend and web typechecks pass.
 - Production SPA build — JS ≈ 355 kB (≈ 98 kB gzip), CSS ≈ 25 kB (≈ 6 kB gzip).
 - `npm run test:ui` — **11 Playwright tests passing** (setup, login, overview, filters, drawers,
   environment validation, scan failure states, notification validation, settings persistence,
   mobile layout, keyboard basics).
-- **Not yet verified:** the production container image was not built or smoke-tested because Docker was
-  not available in this development environment. See [HANDOFF.md](HANDOFF.md) for the exact commands to
-  finish that verification.
+- **Production image** — built with `docker buildx build --platform linux/amd64 --load`, Dockerfile
+  check reported no warnings, container starts healthy and runs the app as non-root UID 10001.
+- **Real Docker Desktop validation** — discovered the running containers, scanned
+  `nginx:1.19-alpine` (**96 findings: 9 critical, 52 high, 29 medium, 6 low; all fixable**) in 14.4 s
+  on first scan and 0.19 s with a warm cache, delivered the grouped ntfy alert, and verified stable
+  re-scanning (no resolved/recreated findings), restart persistence, graceful shutdown and interrupted
+  scan requeue. Screenshots: `test-results/screens/real-overview.png`.
+- **Not yet verified:** Unraid or any remote Docker host, mutual-TLS endpoints, an actual GHCR publish,
+  and a linux/arm64 build (base images support arm64; the multi-arch workflow has not run).
 
 ## License
 

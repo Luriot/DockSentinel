@@ -29,8 +29,26 @@ trivy image --input <tmp>/image.tar \
    output for the scanner version and database timestamp.
 4. Removes the archive, report and scratch directory.
 
+Trivy copies the `--input` argument into each result's `Target` field. DockSentinel runs Trivy with its
+working directory set to the scratch directory and passes the archive by its relative filename, so targets
+remain stable (`image.tar (alpine 3.13.5)`) across scans. Without this, every scan would embed a random
+temporary path and finding identities would be recreated each time.
+
 The child process receives a minimal environment: `PATH`, home/temp paths, locale, proxy variables and
 `TRIVY_CACHE_DIR`. It never receives DockSentinel secrets or Docker credentials.
+
+## Image identity and attribution
+
+Docker's image ID and Trivy's reported `Metadata.ImageID` are not always the same digest. On
+containerd-backed engines (including recent Docker Desktop), `/images/json` exposes the **manifest**
+digest as the image ID, while `docker save` contains the **config** blob whose digest Trivy reports. Both
+digests are immutable, but they differ.
+
+DockSentinel therefore attributes findings to the exact image ID it asked Docker to export, and does not
+compare it with Trivy's reported ID. The requested ID is immutable, so a tag moving during the scan cannot
+change the result. One consequence: if two hosts use different image-store implementations, the same image
+may appear under two IDs and be scanned twice rather than deduplicated. This is a deliberate trade-off;
+changing the identity to a parsed config digest would require reading/unpacking every image archive.
 
 ## Profiles
 
@@ -84,7 +102,6 @@ These limitations are shown in the UI and in notification footers where the dist
 | Non-zero exit | Failed with exit code and a sanitized stderr tail |
 | Timeout / cancellation | Failed (cancelled scans are marked cancelled) |
 | Report above `SCAN_MAX_OUTPUT_BYTES` | Failed — `output_too_large` |
-| Trivy reports a different image ID than exported | Failed — `image_mismatch` |
 | Database download failure | Retried once with the cached DB and a warning; without a cache → `db_unavailable` |
 | Scanner binary missing | Failed — `scanner_unavailable` |
 
@@ -132,7 +149,7 @@ The boundary is intentionally small:
 ```ts
 interface ScannerAdapter {
   readonly name: string;
-  run(input: { archivePath; workDir; profile; expectedImageId; signal }): Promise<ScannerRunResult>;
+  run(input: { archivePath; workDir; profile; signal }): Promise<ScannerRunResult>;
 }
 ```
 

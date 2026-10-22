@@ -1,5 +1,6 @@
 import { readFile, stat, unlink } from 'node:fs/promises';
-import { join } from 'node:path';import { ProcessError, runProcess } from './process.ts';
+import { basename, join } from 'node:path';
+import { ProcessError, runProcess } from './process.ts';
 import { InvalidReportError, parseTrivyReport } from './normalize.ts';
 import type { NormalizedFinding } from '../domain/findings.ts';
 
@@ -12,7 +13,6 @@ export type ScannerErrorCode =
   | 'output_too_large'
   | 'invalid_output'
   | 'scanner_failed'
-  | 'image_mismatch'
   | 'db_unavailable';
 
 export class ScannerError extends Error {
@@ -35,7 +35,6 @@ export interface ScannerRunInput {
   /** Per-scan scratch directory; the report is written and removed here. */
   workDir: string;
   profile: ScanProfile;
-  expectedImageId: string | null;
   signal?: AbortSignal;
 }
 
@@ -126,12 +125,13 @@ export class TrivyAdapter implements ScannerAdapter {
     const started = Date.now();
     const profile = PROFILES[input.profile];
     const timeoutMs = Math.min(profile.timeoutMs, this.options.maxTimeoutMs);
-    const reportPath = join(input.workDir, `report-${input.profile}.json`);
+    const reportName = `report-${input.profile}.json`;
+    const reportPath = join(input.workDir, reportName);
     const warnings: string[] = [];
 
     let result;
     try {
-      result = await this.invokeScanner(input, profile, timeoutMs, reportPath, false);
+      result = await this.invokeScanner(input, profile, timeoutMs, reportName, false);
     } catch (error) {
       if (
         error instanceof ProcessError &&
@@ -140,7 +140,7 @@ export class TrivyAdapter implements ScannerAdapter {
       ) {
         warnings.push('Vulnerability database update failed; retried with the cached database');
         try {
-          result = await this.invokeScanner(input, profile, timeoutMs, reportPath, true);
+          result = await this.invokeScanner(input, profile, timeoutMs, reportName, true);
         } catch (retryError) {
           throw this.mapError(retryError);
         }
@@ -177,16 +177,6 @@ export class TrivyAdapter implements ScannerAdapter {
       throw error;
     }
 
-    if (input.expectedImageId && parsed.imageId && parsed.imageId !== input.expectedImageId) {
-      throw new ScannerError(
-        'image_mismatch',
-        `Scanner reported image ${parsed.imageId}, expected ${input.expectedImageId}`,
-      );
-    }
-    if (input.expectedImageId && !parsed.imageId) {
-      warnings.push('Scanner did not report an image ID; results were attributed using the exported archive');
-    }
-
     const version = await this.readVersion();
     if (!version.dbUpdatedAt) warnings.push('Vulnerability database timestamp could not be determined');
     if (version.dbUpdatedAt) {
@@ -196,8 +186,16 @@ export class TrivyAdapter implements ScannerAdapter {
       }
     }
 
+    const archiveBase = basename(input.archivePath);
+    const stripArchivePrefix = (target: string): string => {
+      if (target === input.archivePath) return archiveBase;
+      if (target.startsWith(`${input.archivePath} `)) return `${archiveBase}${target.slice(input.archivePath.length)}`;
+      if (target.startsWith(`${input.archivePath}/`)) return target.slice(input.archivePath.length + 1);
+      return target;
+    };
+
     const findings: NormalizedFinding[] = parsed.findings.map((finding) => ({
-      target: finding.target,
+      target: stripArchivePrefix(finding.target),
       class: finding.class,
       type: finding.type,
       vulnId: finding.vulnId,
@@ -232,17 +230,20 @@ export class TrivyAdapter implements ScannerAdapter {
     input: ScannerRunInput,
     profile: ProfileDefinition,
     timeoutMs: number,
-    reportPath: string,
+    reportName: string,
     skipDbUpdate: boolean,
   ) {
+    // Run from the work directory with relative paths. Trivy copies the input argument into the
+    // Result.Target field, so an absolute path would make every finding identity random and cause
+    // spurious resolve/reappear cycles on every scan.
     const args = [
       'image',
       '--input',
-      input.archivePath,
+      basename(input.archivePath),
       '--format',
       'json',
       '--output',
-      reportPath,
+      reportName,
       '--quiet',
       '--scanners',
       'vuln',
@@ -259,6 +260,7 @@ export class TrivyAdapter implements ScannerAdapter {
     return runProcess({
       command: this.options.bin,
       args,
+      cwd: input.workDir,
       env: scannerEnv(this.options.cacheDir),
       timeoutMs,
       signal: input.signal,
