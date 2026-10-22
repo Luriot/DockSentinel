@@ -1,0 +1,136 @@
+export function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return 'never';
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return 'unknown';
+  const diff = Date.now() - time;
+  if (diff < 0) {
+    const future = Math.abs(diff);
+    if (future < 60_000) return 'in a minute';
+    if (future < 3_600_000) return `in ${Math.round(future / 60_000)}m`;
+    if (future < 86_400_000) return `in ${Math.round(future / 3_600_000)}h`;
+    return `in ${Math.round(future / 86_400_000)}d`;
+  }
+  if (diff < 45_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.max(1, Math.round(diff / 60_000))}m ago`;
+  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
+  if (diff < 30 * 86_400_000) return `${Math.round(diff / 86_400_000)}d ago`;
+  return formatDate(iso);
+}
+
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function formatDateUtc(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+export function formatDuration(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) return '—';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.round((ms % 60_000) / 1000);
+  return `${minutes}m ${seconds}s`;
+}
+
+export function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes) || bytes < 0) return '—';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value >= 100 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
+export function shortImageId(imageId: string | null | undefined): string {
+  if (!imageId) return '—';
+  const digest = imageId.startsWith('sha256:') ? imageId.slice(7) : imageId;
+  return digest.slice(0, 12);
+}
+
+export function titleCase(value: string | null | undefined): string {
+  if (!value) return '—';
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export function plural(count: number, singular: string, pluralForm?: string): string {
+  return `${count} ${count === 1 ? singular : (pluralForm ?? `${singular}s`)}`;
+}
+
+export function hostFromAddress(kind: string, address: string): string {
+  if (kind === 'unix') return address;
+  return address;
+}
+
+export function exposureLabel(state: string | null | undefined): string {
+  switch (state) {
+    case 'confirmed':
+      return 'Internet exposure declared';
+    case 'potential':
+      return 'Potentially exposed';
+    case 'internal':
+      return 'No published ports';
+    case 'unknown':
+      return 'Unknown exposure';
+    default:
+      return 'Unknown exposure';
+  }
+}
+
+export function exposureShortLabel(state: string | null | undefined): string {
+  switch (state) {
+    case 'confirmed':
+      return 'Internet declared';
+    case 'potential':
+      return 'Potential';
+    case 'internal':
+      return 'Internal';
+    default:
+      return 'Unknown';
+  }
+}
+
+export function scanStatusLabel(status: string | null | undefined): string {
+  switch (status) {
+    case 'success':
+      return 'Scan clean or findings recorded';
+    case 'failed':
+      return 'Scan failed';
+    case 'running':
+      return 'Scanning';
+    case 'queued':
+      return 'Queued';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return 'Never scanned';
+  }
+}
+
+export function severityOrder(severity: string): number {
+  switch (severity) {
+    case 'CRITICAL':
+      return 4;
+    case 'HIGH':
+      return 3;
+    case 'MEDIUM':
+      return 2;
+    case 'LOW':
+      return 1;
+    default:
+      return 0;
+  }
+}

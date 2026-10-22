@@ -1,0 +1,35 @@
+name: docksentinel
+
+services:
+  docksentinel:
+    image: ghcr.io/OWNER/docksentinel:latest
+    build:
+      context: .
+    container_name: docksentinel
+    restart: unless-stopped
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - '8080:8080'
+    environment:
+      TZ: ${TZ:-UTC}
+      DATA_DIR: /data
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      PUID: ${PUID:-10001}
+      PGID: ${PGID:-10001}
+      # Optional overrides:
+      # COOKIE_SECURE: always
+      # TRUST_PROXY: 'true'
+    volumes:
+      # Persistent state: database, encryption key, Trivy cache.
+      - ./data:/data
+      # Local Docker Engine access. Read-only is still effectively privileged:
+      # anyone who can use this socket can control the host. Remove it if you
+      # only monitor remote endpoints over TLS.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    group_add:
+      # GID that owns /var/run/docker.sock. Find it with:
+      #   stat -c '%g' /var/run/docker.sock
+      - '${DOCKER_GID:-999}'
