@@ -200,6 +200,21 @@ ignores forwarded headers, which is safer than trusting arbitrary clients.
 Do not expose DockSentinel's port directly to the Internet without authentication in front of it; the app
 has its own login, but a VPN or authenticated proxy is still recommended for a security console.
 
+## Published image
+
+`ghcr.io/luriot/docksentinel` is published for `linux/amd64` and `linux/arm64` with tags `latest`, `main`
+and `sha-<commit>`, SBOM/provenance attestations, and a signed GitHub provenance attestation. The GHCR
+package is currently private even though the repository is public:
+
+```bash
+# Either make the package public in GitHub package settings, or authenticate:
+echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin   # token needs read:packages
+docker pull ghcr.io/luriot/docksentinel:latest
+```
+
+`docker compose up --build` builds from the local source and does not require registry authentication.
+Create a `v*` tag and push it to publish semver tags.
+
 ## Health, shutdown and logs
 
 - Liveness/readiness: `GET /api/health` (no authentication) executes a database query and returns

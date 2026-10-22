@@ -8,8 +8,9 @@ endpoint.
 
 A Community Applications–style template is provided at `unraid/docksentinel.xml`.
 
-1. Replace `OWNER` in `<Repository>` and `<Support>`/`<Project>` with the GitHub/ghcr.io namespace that
-   publishes the image.
+1. The template points at `ghcr.io/luriot/docksentinel:latest`. The GHCR package is currently private:
+   make it public in the package settings, or authenticate Unraid's Docker daemon to GHCR with a token
+   that has `read:packages`.
 2. Copy the XML to `/boot/config/plugins/dockerMan/templates-user/docksentinel.xml` on the Unraid server,
    or add the container manually in the Docker tab using the same settings.
 3. The template creates:
@@ -54,8 +55,8 @@ If the appdata directory is not writable, set `PUID`/`PGID` to the owner of
 
 ## Updates
 
-- The template uses `ghcr.io/OWNER/docksentinel:latest`. Prefer pinning a version tag (for example
-  `:0.1.0`) for reproducible upgrades.
+- The template uses `ghcr.io/luriot/docksentinel:latest`. Prefer pinning a version tag (create one with
+  `git tag v0.1.0 && git push origin v0.1.0`) for reproducible upgrades.
 - Updating the container image runs schema migrations automatically on start. Back up `/data` first.
 - The Trivy cache lives in the appdata directory and persists updates across container restarts.
 

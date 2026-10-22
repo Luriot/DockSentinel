@@ -64,6 +64,11 @@ Open `http://<host>:8080`, enter the setup token, create the administrator accou
 environment (start with the local socket `/var/run/docker.sock`). Discovery and the first scans are
 queued automatically.
 
+The Compose file builds locally by default. Published images are available at
+`ghcr.io/luriot/docksentinel` (`latest`, `main`, `sha-<commit>`). The package is currently private:
+to pull it, `docker login ghcr.io` with a token that has `read:packages`, or change the package
+visibility to public. A locally built image needs no registry login.
+
 The socket is mapped read-only, but Docker access is still **effectively host-root**. Read the
 [Docker security notes](docs/SECURITY.md#docker-socket-access) before deploying on a host that matters.
 If discovery fails with permission denied, add the socket's group ID (`stat -c '%g' /var/run/docker.sock`)
@@ -161,8 +166,14 @@ Trivy 0.75.0 and Chromium 156:
   on first scan and 0.19 s with a warm cache, delivered the grouped ntfy alert, and verified stable
   re-scanning (no resolved/recreated findings), restart persistence, graceful shutdown and interrupted
   scan requeue. Screenshots: `test-results/screens/real-overview.png`.
-- **Not yet verified:** Unraid or any remote Docker host, mutual-TLS endpoints, an actual GHCR publish,
-  and a linux/arm64 build (base images support arm64; the multi-arch workflow has not run).
+- **Published image** — `ghcr.io/luriot/docksentinel` (`latest`, `main`, `sha-a45adfe`), manifest
+  `sha256:8922728e…`, built for **linux/amd64 + linux/arm64** and verified in the workflow. BuildKit
+  attached SBOM and provenance attestations; the public GitHub artifact attestation was signed with
+  Sigstore and uploaded to Rekor. The GHCR package itself is still **private** (independent of the now
+  public repository), so pulling it anonymously is denied until its visibility is changed or credentials
+  are supplied.
+- **Not yet verified:** Unraid or any remote Docker host, mutual-TLS endpoints, and running the arm64
+  image on real arm64 hardware.
 
 ## License
 
