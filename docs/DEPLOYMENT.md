@@ -202,18 +202,16 @@ has its own login, but a VPN or authenticated proxy is still recommended for a s
 
 ## Published image
 
-`ghcr.io/luriot/docksentinel` is published for `linux/amd64` and `linux/arm64` with tags `latest`, `main`
-and `sha-<commit>`, SBOM/provenance attestations, and a signed GitHub provenance attestation. The GHCR
-package is currently private even though the repository is public:
+`ghcr.io/luriot/docksentinel` is public and published for `linux/amd64` and `linux/arm64` with tags
+`latest`, `main` and `sha-<commit>`, BuildKit SBOM/provenance, and a signed GitHub provenance attestation:
 
 ```bash
-# Either make the package public in GitHub package settings, or authenticate:
-echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin   # token needs read:packages
 docker pull ghcr.io/luriot/docksentinel:latest
+gh attestation verify oci://ghcr.io/luriot/docksentinel:latest -R Luriot/DockSentinel
 ```
 
-`docker compose up --build` builds from the local source and does not require registry authentication.
-Create a `v*` tag and push it to publish semver tags.
+`docker compose up --build` builds from local source instead of pulling. Create a `v*` tag and push it to
+publish semver tags.
 
 ## Health, shutdown and logs
 

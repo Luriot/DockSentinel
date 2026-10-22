@@ -1,9 +1,8 @@
 # DockSentinel handoff
 
 Status: **MVP implemented, verified locally, committed and published to GHCR.** The public repository is
-`https://github.com/Luriot/DockSentinel`; the image is `ghcr.io/luriot/docksentinel`. The GHCR package is
-currently private and needs a one-time visibility change (or registry credentials) before anonymous pulls
-work. This document states exactly what exists, what was executed, and what remains.
+`https://github.com/Luriot/DockSentinel`; the public image is `ghcr.io/luriot/docksentinel`. This document
+states exactly what exists, what was executed, and what remains.
 
 Built on 2026-10-22 with Node.js 26.4.0, Trivy 0.75.0, Docker Desktop 4.96.2 (Linux Engine 29.9.2),
 GitHub CLI 2.103.0 and Playwright/Chromium 156 on Windows. Docker and `gh` became available after the
@@ -263,36 +262,34 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 - Repository: **public** — https://github.com/Luriot/DockSentinel (branch `main`).
 - Workflow: [`.github/workflows/publish.yml`](.github/workflows/publish.yml), triggered by pushes to
   `main`/`v*` tags that change image inputs, or by manual dispatch. Never by pull requests.
-- Successful run: https://github.com/Luriot/DockSentinel/actions/runs/39869996955
-- Published manifest: `ghcr.io/luriot/docksentinel@sha256:8922728ec2860ff09a00f1fcd71377885e3b067cd8b5bb3833c989aac9ce6e45`
-- Tags: `latest`, `main`, `sha-a45adfe`
-- Platforms: `linux/amd64`, `linux/arm64` (verified by `docker buildx imagetools inspect` inside the run)
+- Final successful run: https://github.com/Luriot/DockSentinel/actions/runs/39872718832
+- Published manifest: `ghcr.io/luriot/docksentinel@sha256:b3d39f508a4aa8cf179c32b67dc8b97b24dd460616bb7dcb0a5c69a9abd3886c`
+- Tags: `latest`, `main`, `sha-4415f96`
+- Platforms: `linux/amd64`, `linux/arm64` (verified by the workflow and by an anonymous local pull).
 - Supply chain: BuildKit **SBOM** and **maximum provenance** are attached to the image. The GitHub
-  artifact attestation is signed with Sigstore, uploaded to Rekor and to the registry. The step is guarded
-  by repository visibility so it is skipped instead of failing if the repository is made private again.
-- **GHCR package visibility is private.** The repository being public does not change an existing
-  package's visibility. Anonymous pulls currently return `unauthorized`; `gh api` package queries return
-  403 because the CLI token has no `read:packages` scope.
-- First attempt (private repository) failed only on the optional GitHub artifact attestation step
-  (“Feature not available for user-owned private repositories”); BuildKit attestations and the image push
-  already succeeded. The step is now conditional and the follow-up public run passed.
-- The workflow pinned third-party actions to maintained major versions; the runner reports a Node 20
-  deprecation warning for those actions but executes them on Node 24 without failure.
+  artifact attestation is signed with Sigstore, uploaded to Rekor and to the registry; it is guarded by
+  repository visibility so a future private repository skips it instead of failing.
+- Verification performed: anonymous `docker pull`, image labels (`licenses=MIT`, revision
+  `4415f966…`, source repository), both platform manifests, and
+  `gh attestation verify oci://ghcr.io/luriot/docksentinel:latest -R Luriot/DockSentinel` (exit 0).
+- CI hygiene: actions are on their current Node 24 majors (`checkout@v7`, Docker actions
+  `setup-qemu@v4`, `setup-buildx@v4`, `login@v4`, `metadata@v6`, `build-push@v7`,
+  `attest-build-provenance@v4`) and the runner is pinned to `ubuntu-24.04`. The previous Node.js 20 and
+  `ubuntu-latest` annotations are gone.
+- The first run (private repository) failed only on GitHub's artifact-attestation API, which is not
+  available for user-owned private repositories; BuildKit attestations and the image push had already
+  succeeded. After making the repository public, the conditional step ran and the workflow is green.
 
 ## Exact actions still required from the user
 
-1. **Make the GHCR package public** (one click in GitHub → your profile → Packages → `docksentinel` →
-   Package settings → Change visibility), or keep it private and supply a token with `read:packages`
-   wherever the image is pulled. Then verify:
-   `gh attestation verify oci://ghcr.io/luriot/docksentinel:latest -R Luriot/DockSentinel`.
-2. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
+1. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
    socket group IDs and update the Compose/template defaults if they differ from the documented guidance.
-3. **Review the tag policy**: `latest`, `main` and `sha-<commit>` are published now. Create a `v*` tag when
+2. **Review the tag policy**: `latest`, `main` and `sha-<commit>` are published now. Create a `v*` tag when
    you want semver tags; decide whether `latest` should keep moving on every image-impacting `main` push.
-4. Optionally add a CI test workflow and an arm64 runtime check; deliberately not added to avoid
+3. Optionally add a CI test workflow and an arm64 runtime check; deliberately not added to avoid
    unnecessary Actions runs.
-5. Optionally update the third-party actions to newer majors when they drop Node 20 (currently a runner
-   warning only).
+4. Optionally run the published arm64 image on real arm64 hardware (the manifest exists; only the amd64
+   image was executed during development).
 
 ## Notable decisions and deviations
 

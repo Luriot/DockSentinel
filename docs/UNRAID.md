@@ -8,9 +8,8 @@ endpoint.
 
 A Community Applications–style template is provided at `unraid/docksentinel.xml`.
 
-1. The template points at `ghcr.io/luriot/docksentinel:latest`. The GHCR package is currently private:
-   make it public in the package settings, or authenticate Unraid's Docker daemon to GHCR with a token
-   that has `read:packages`.
+1. The template points at the public `ghcr.io/luriot/docksentinel:latest`, so no registry login is
+   required.
 2. Copy the XML to `/boot/config/plugins/dockerMan/templates-user/docksentinel.xml` on the Unraid server,
    or add the container manually in the Docker tab using the same settings.
 3. The template creates:
