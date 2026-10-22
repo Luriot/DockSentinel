@@ -229,7 +229,7 @@ Screenshots from the UI test run (not committed): `test-results/screens/01-overv
 - The setup token is printed to logs once; protect log access.
 - Backups contain encrypted secrets plus the key; they must be protected.
 - No SBOM export, no VEX, no automatic remediation, no container modification.
-- The image currently has no licence file. Add one before distributing.
+- Released under the MIT licence ([`LICENSE`](LICENSE)).
 
 See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardening checklist.
 
@@ -270,22 +270,16 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 - `gh` is installed and authenticated (`Luriot`), but **no GitHub repository or git remote exists** for this
   project and the workflow has **never run**. Nothing was pushed or published; no GHCR image exists as a
   result of this work.
-- The Compose file and Unraid template contain `OWNER` placeholders for the image namespace.
+- The Compose file and Unraid template point at `ghcr.io/luriot/docksentinel`; the GitHub repository is
+  private and the package inherits that visibility.
 
 ## Exact actions still required from the user
 
 1. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
    socket group IDs and update the Compose/template defaults if they differ from the documented guidance.
-2. **Create the GitHub repository and set the remote**, then replace `OWNER` in `docker-compose.yml` and
-   `unraid/docksentinel.xml` with the actual namespace (the workflow derives `ghcr.io/<owner>/<repo>`
-   automatically).
-3. **Review the image tag/version policy** (`:latest`, semver tags) and decide whether `latest` should be
+2. **Review the image tag/version policy** (`:latest`, semver tags) and decide whether `latest` should be
    published from `main` automatically.
-4. **Add a licence** if the project will be distributed.
-5. **Approve the first push and publish**: explicitly authorise pushing commits, creating the remote
-   repository, and running the workflow. After the first run, verify the GHCR tags, SBOM/provenance and the
-   linux/arm64 image. This handoff did neither.
-6. Optionally add a CI test workflow and an arm64 build check; deliberately not added to avoid unnecessary
+3. Optionally add a CI test workflow and an arm64 build check; deliberately not added to avoid unnecessary
    Actions runs and because the publishing workflow was required to be the final phase.
 
 ## Notable decisions and deviations

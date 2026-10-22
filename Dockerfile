@@ -22,7 +22,7 @@ FROM node:24-bookworm-slim
 
 LABEL org.opencontainers.image.title="DockSentinel" \
       org.opencontainers.image.description="Docker vulnerability monitoring and alerting, orchestrated with Trivy" \
-      org.opencontainers.image.licenses="UNLICENSED"
+      org.opencontainers.image.licenses="MIT"
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates tini gosu \

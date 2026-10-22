@@ -11,6 +11,7 @@ playwright-report
 docs
 HANDOFF.md
 README.md
+LICENSE
 unraid
 *.log
 .env

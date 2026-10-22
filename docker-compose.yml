@@ -2,7 +2,7 @@ name: docksentinel
 
 services:
   docksentinel:
-    image: ghcr.io/OWNER/docksentinel:latest
+    image: ghcr.io/luriot/docksentinel:latest
     build:
       context: .
     container_name: docksentinel

@@ -166,4 +166,4 @@ Trivy 0.75.0 and Chromium 156:
 
 ## License
 
-No license file is included in this repository. Add an explicit license before distributing the project.
+MIT. See [LICENSE](LICENSE).
