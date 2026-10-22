@@ -78,7 +78,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Attest build provenance
+      - name: Verify pushed image
+        run: |
+          docker buildx imagetools inspect \
+            "${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}"
+
+      # BuildKit already attaches SBOM and provenance attestations to the image. GitHub's separate
+      # artifact attestation API is only available for public repositories, so keep it optional.
+      - name: Attest build provenance (public repositories only)
+        if: ${{ github.event.repository.visibility == 'public' }}
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ steps.image.outputs.name }}
