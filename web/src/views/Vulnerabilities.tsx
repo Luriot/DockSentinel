@@ -580,5 +580,3 @@ function FindingDrawer({
     </Drawer>
   );
 }
-
-export type { FindingsResponse };

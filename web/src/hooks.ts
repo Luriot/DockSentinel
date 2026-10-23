@@ -12,7 +12,7 @@ export interface ApiState<T> {
  * Fetches JSON from the API. Stale data is kept visible when a refresh fails, and optional polling
  * is used where the view is expected to update on its own (overview, scan activity).
  */
-export function useApi<T>(path: string | null, options: { intervalMs?: number; enabled?: boolean } = {}): ApiState<T> {
+export function useApi<T>(path: string | null, options: { intervalMs?: number } = {}): ApiState<T> {
   const [state, setState] = useState<{ data: T | null; error: ApiError | null; loading: boolean }>({
     data: null,
     error: null,
@@ -29,7 +29,7 @@ export function useApi<T>(path: string | null, options: { intervalMs?: number; e
   }, []);
 
   useEffect(() => {
-    if (!path || options.enabled === false) {
+    if (!path) {
       setState({ data: null, error: null, loading: false });
       return;
     }
@@ -47,13 +47,13 @@ export function useApi<T>(path: string | null, options: { intervalMs?: number; e
       cancelled = true;
     };
     // options.enabled is intentionally part of the dependency list; callers pass simple values.
-  }, [path, revision, options.enabled]);
+  }, [path, revision]);
 
   useEffect(() => {
-    if (!options.intervalMs || options.enabled === false) return;
+    if (!options.intervalMs) return;
     const timer = setInterval(() => setRevision((value) => value + 1), options.intervalMs);
     return () => clearInterval(timer);
-  }, [options.intervalMs, options.enabled]);
+  }, [options.intervalMs]);
 
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   return { ...state, refresh };
@@ -89,9 +89,8 @@ export function useRoute(): Route {
   return route;
 }
 
-export function navigate(path: string, options: { replace?: boolean } = {}): void {
-  if (options.replace) window.history.replaceState(null, '', path);
-  else window.history.pushState(null, '', path);
+export function navigate(path: string): void {
+  window.history.pushState(null, '', path);
   window.dispatchEvent(new PopStateEvent('popstate'));
   window.scrollTo({ top: 0 });
 }

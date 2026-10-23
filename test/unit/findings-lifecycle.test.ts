@@ -189,12 +189,11 @@ test('KEV sync enriches findings and reports newly exploited entries once', asyn
   assert.equal(first.newlyFlagged.length, 1);
   assert.ok((first.newlyFlagged[0]?.findingId ?? 0) > 0);
 
-  const enriched = db.get<{ kev: number; kev_added_at: string | null; kev_ransomware: string | null }>(
-    `SELECT kev, kev_added_at, kev_ransomware FROM findings WHERE vuln_id = 'CVE-2023-1111'`,
+  const enriched = db.get<{ kev: number; kev_added_at: string | null }>(
+    `SELECT kev, kev_added_at FROM findings WHERE vuln_id = 'CVE-2023-1111'`,
   );
   assert.equal(enriched?.kev, 1);
   assert.equal(enriched?.kev_added_at, '2025-12-01');
-  assert.equal(enriched?.kev_ransomware, 'Known');
 
   const second = await syncKev(db, { url: 'http://example.test/kev.json', log: logger, fetchImpl });
   assert.equal(second.ok, true);

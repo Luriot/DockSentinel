@@ -300,7 +300,7 @@ export class ScanCoordinator {
         exitCode: result.exitCode,
         warnings: result.warnings,
       });
-      updateImageAfterScan(this.db, scan.imageId, scan.id, 'success', applied.counts, environment.id, result.os);
+      updateImageAfterScan(this.db, scan.imageId, scan.id, 'success', applied.counts, result.os);
       return applied;
     });
 
@@ -368,7 +368,7 @@ export class ScanCoordinator {
 
   private updateImageScanStatus(scan: ScanRecord, status: 'failed' | 'cancelled'): void {
     try {
-      updateImageAfterScan(this.db, scan.imageId, null, status, null, scan.environmentId, null);
+      updateImageAfterScan(this.db, scan.imageId, null, status, null, null);
     } catch (error) {
       this.log.warn(
         { imageId: scan.imageId, err: error instanceof Error ? error.message : String(error) },

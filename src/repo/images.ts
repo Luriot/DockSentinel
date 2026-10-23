@@ -1,7 +1,6 @@
 import type { Db } from '../db/index.ts';
 import { nowIso } from '../util/time.ts';
 import type { NormalizedContainer, NormalizedImage } from '../docker/normalize.ts';
-import type { ExposureState } from '../domain/exposure.ts';
 import type { SeverityCounts } from '../domain/findings.ts';
 
 export interface ImageReference {
@@ -33,7 +32,6 @@ export interface ImageSummary {
   runningContainerCount: number;
   environmentCount: number;
   references: ImageReference[];
-  exposure: ExposureState | null;
 }
 
 interface ImageRow {
@@ -57,16 +55,8 @@ interface ImageRow {
   container_count: number;
   running_count: number;
   env_count: number;
-  exposure_rank: number | null;
 }
 
-export function exposureFromRank(rank: number | null | undefined): ExposureState | null {
-  if (rank === null || rank === undefined) return null;
-  if (rank >= 3) return 'confirmed';
-  if (rank === 2) return 'potential';
-  if (rank === 1) return 'internal';
-  return 'unknown';
-}
 
 export function upsertImage(db: Db, image: NormalizedImage, now: string, trustDigests: boolean): void {
   db.run(
@@ -125,7 +115,6 @@ export function updateImageAfterScan(
   scanId: number | null,
   status: 'success' | 'failed' | 'cancelled',
   counts: SeverityCounts | null,
-  environmentId: number | null,
   os: { family: string | null; version: string | null } | null,
 ): void {
   const now = nowIso();
@@ -133,7 +122,6 @@ export function updateImageAfterScan(
     db.run(
       `UPDATE images SET
          last_scan_at = ?, last_scan_status = 'success', last_success_at = ?, last_success_scan_id = ?,
-         last_scan_environment_id = ?,
          critical_count = ?, high_count = ?, medium_count = ?, low_count = ?, unknown_count = ?, fixable_count = ?,
          os_family = COALESCE(?, os_family), os_version = COALESCE(?, os_version), updated_at = ?
        WHERE image_id = ?`,
@@ -141,7 +129,6 @@ export function updateImageAfterScan(
         now,
         now,
         scanId,
-        environmentId,
         counts.CRITICAL,
         counts.HIGH,
         counts.MEDIUM,
@@ -211,9 +198,7 @@ export function listImages(db: Db, filters: ImageFilters): { items: ImageSummary
             i.critical_count, i.high_count, i.medium_count, i.low_count, i.unknown_count, i.fixable_count,
             (SELECT COUNT(*) FROM containers c WHERE c.image_id = i.image_id AND c.present = 1) AS container_count,
             (SELECT COUNT(*) FROM containers c WHERE c.image_id = i.image_id AND c.present = 1 AND c.state = 'running') AS running_count,
-            (SELECT COUNT(DISTINCT environment_id) FROM image_locations l WHERE l.image_id = i.image_id) AS env_count,
-            (SELECT MAX(CASE c.exposure_state WHEN 'confirmed' THEN 3 WHEN 'potential' THEN 2 WHEN 'internal' THEN 1 ELSE 0 END)
-               FROM containers c WHERE c.image_id = i.image_id AND c.present = 1) AS exposure_rank
+            (SELECT COUNT(DISTINCT environment_id) FROM image_locations l WHERE l.image_id = i.image_id) AS env_count
      FROM images i
      ${where}
      ORDER BY i.critical_count DESC, i.high_count DESC, (i.last_success_at IS NULL) DESC, i.updated_at DESC
@@ -272,7 +257,6 @@ export function listImages(db: Db, filters: ImageFilters): { items: ImageSummary
     runningContainerCount: row.running_count,
     environmentCount: row.env_count,
     references: referencesByImage.get(row.image_id) ?? [],
-    exposure: exposureFromRank(row.exposure_rank),
   }));
   return { items, total };
 }

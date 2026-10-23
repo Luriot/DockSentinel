@@ -41,25 +41,15 @@ export function getPasswordHash(db: Db): string | null {
 export function createSession(
   db: Db,
   userId: number,
-  meta: { ip?: string | null; userAgent?: string | null },
 ): { token: string; csrfToken: string; expiresAt: string } {
   const token = randomBytes(32).toString('base64url');
   const csrfToken = randomBytes(32).toString('base64url');
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS).toISOString();
   db.run(
-    `INSERT INTO sessions (token_hash, csrf_token, user_id, created_at, expires_at, last_seen_at, user_agent, ip)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      hashToken(token),
-      csrfToken,
-      userId,
-      now.toISOString(),
-      expiresAt,
-      now.toISOString(),
-      (meta.userAgent ?? '').slice(0, 300) || null,
-      (meta.ip ?? '').slice(0, 64) || null,
-    ],
+    `INSERT INTO sessions (token_hash, csrf_token, user_id, created_at, expires_at, last_seen_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [hashToken(token), csrfToken, userId, now.toISOString(), expiresAt, now.toISOString()],
   );
   return { token, csrfToken, expiresAt };
 }

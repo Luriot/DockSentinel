@@ -30,7 +30,6 @@ administrative endpoints. All JSON responses use camelCase. Errors have the shap
 | --- | --- | --- |
 | `GET` | `/api/overview` | Dashboard aggregates, top findings, recent activity, environments |
 | `GET` | `/api/environments` | Endpoint list with status and counts |
-| `GET` | `/api/environments/:id` | Endpoint detail and recent scans |
 | `GET` | `/api/images` | Filters: `q`, `envId`, `minSeverity=critical\|high`, `neverScanned`, `stale`, `page`, `pageSize` |
 | `GET` | `/api/images/:imageId` | Image inventory, containers, findings, counts, scans, events |
 | `GET` | `/api/containers` | Filters: `q`, `envId`, `status=running\|stopped\|all`, `exposure`, `includeRemoved`, paging |

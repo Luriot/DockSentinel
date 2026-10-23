@@ -27,9 +27,7 @@ export const MIGRATIONS: readonly Migration[] = [
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at TEXT NOT NULL,
         expires_at TEXT NOT NULL,
-        last_seen_at TEXT NOT NULL,
-        user_agent TEXT,
-        ip TEXT
+        last_seen_at TEXT NOT NULL
       ) STRICT;
       CREATE INDEX sessions_expires ON sessions(expires_at);
 
@@ -72,7 +70,6 @@ export const MIGRATIONS: readonly Migration[] = [
         updated_at TEXT NOT NULL,
         last_scan_at TEXT,
         last_scan_status TEXT,
-        last_scan_environment_id INTEGER REFERENCES environments(id) ON DELETE SET NULL,
         last_success_at TEXT,
         last_success_scan_id INTEGER,
         critical_count INTEGER NOT NULL DEFAULT 0,
@@ -176,7 +173,6 @@ export const MIGRATIONS: readonly Migration[] = [
         modified_at TEXT,
         kev INTEGER NOT NULL DEFAULT -1 CHECK (kev IN (-1,0,1)),
         kev_added_at TEXT,
-        kev_ransomware TEXT,
         episode INTEGER NOT NULL DEFAULT 1,
         first_seen_at TEXT NOT NULL,
         last_seen_at TEXT NOT NULL,
@@ -213,11 +209,10 @@ export const MIGRATIONS: readonly Migration[] = [
         body TEXT NOT NULL,
         priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 5),
         tags TEXT,
-        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sending','sent','failed','suppressed')),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sending','sent','failed')),
         attempts INTEGER NOT NULL DEFAULT 0,
         next_attempt_at TEXT,
         last_error TEXT,
-        delivery_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sent_at TEXT
@@ -228,12 +223,7 @@ export const MIGRATIONS: readonly Migration[] = [
 
       CREATE TABLE kev (
         cve_id TEXT PRIMARY KEY,
-        vendor_project TEXT,
-        product TEXT,
-        name TEXT,
         date_added TEXT,
-        due_date TEXT,
-        ransomware TEXT,
         synced_at TEXT NOT NULL
       ) STRICT;
       CREATE INDEX kev_added ON kev(date_added DESC);

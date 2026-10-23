@@ -31,7 +31,6 @@ export function Environments() {
   const [deleting, setDeleting] = useState<EnvironmentSummary | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [testResults, setTestResults] = useState<Record<number, { ok: boolean; message: string }>>({});
 
   async function testEnvironment(environment: EnvironmentSummary): Promise<void> {
     setBusyId(environment.id);
@@ -39,7 +38,6 @@ export function Environments() {
       const result = await api.post<{ ok: boolean; message: string; containers: number; images: number }>(
         `/environments/${environment.id}/test`,
       );
-      setTestResults((current) => ({ ...current, [environment.id]: { ok: result.ok, message: result.message } }));
       toast(
         result.ok
           ? `Connected. ${result.containers} containers, ${result.images} images visible.`
@@ -173,7 +171,6 @@ export function Environments() {
       {data && data.items.length > 0 ? (
         <div className="grid-auto">
           {data.items.map((environment) => {
-            const testResult = testResults[environment.id];
             const busy = busyId === environment.id;
             return (
               <article className="card env-card" key={environment.id} aria-label={environment.name}>
@@ -191,9 +188,6 @@ export function Environments() {
                   <div className={`note ${environment.status === 'offline' ? 'danger' : ''}`}>
                     {environment.statusMessage}
                   </div>
-                ) : null}
-                {testResult ? (
-                  <div className={`note ${testResult.ok ? 'info' : 'danger'}`}>{testResult.message}</div>
                 ) : null}
 
                 <div className="env-stats">

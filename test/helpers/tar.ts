@@ -47,17 +47,3 @@ export function createTar(entries: TarEntry[]): Buffer {
   chunks.push(Buffer.alloc(1024));
   return Buffer.concat(chunks);
 }
-
-export function listTarEntries(buffer: Buffer): string[] {
-  const names: string[] = [];
-  let offset = 0;
-  while (offset + 512 <= buffer.length) {
-    const block = buffer.subarray(offset, offset + 512);
-    if (block.every((byte) => byte === 0)) break;
-    const name = block.subarray(0, 100).toString('utf8').replace(/\0.*$/, '');
-    const size = Number.parseInt(block.subarray(124, 136).toString('utf8').replace(/\0.*$/, '').trim() || '0', 8);
-    names.push(name);
-    offset += 512 + Math.ceil(size / 512) * 512;
-  }
-  return names;
-}

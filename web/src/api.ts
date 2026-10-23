@@ -67,15 +67,6 @@ export const api = {
   delete: <T>(path: string) => request<T>('DELETE', path),
 };
 
-export function qs(params: Record<string, string | number | boolean | undefined | null>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null || value === '') continue;
-    search.set(key, String(value));
-  }
-  const result = search.toString();
-  return result ? `?${result}` : '';
-}
 
 export interface Priority {
   score: number;
@@ -186,7 +177,6 @@ export interface ImageSummary {
   runningContainerCount: number;
   environmentCount: number;
   references: ImageReference[];
-  exposure: ExposureState | null;
 }
 
 export interface EnvironmentSummary {
@@ -259,11 +249,10 @@ export interface AlertRecord {
   body: string;
   priority: number;
   tags: string | null;
-  status: 'pending' | 'sending' | 'sent' | 'failed' | 'suppressed';
+  status: 'pending' | 'sending' | 'sent' | 'failed';
   attempts: number;
   nextAttemptAt: string | null;
   lastError: string | null;
-  deliveryId: string | null;
   createdAt: string;
   updatedAt: string;
   sentAt: string | null;
@@ -362,8 +351,8 @@ export interface OverviewData {
     recent: ScanRecord[];
     lastSuccessfulAt: string | null;
   };
-  alerts: { pending: number; sent24h: number; failed24h: number; total24h: number };
-  findings: { top: FindingView[]; totalOpen: number };
+  alerts: { pending: number; sent24h: number; failed24h: number };
+  findings: { top: FindingView[] };
   events: {
     id: number;
     kind: string;
@@ -379,15 +368,8 @@ export interface OverviewData {
   kev: KevStatus;
   lastDiscoveryAt: string | null;
   freshnessHours: number;
-  scanActivity: { active: number };
 }
 
-export interface Page<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
 export interface SessionInfo {
   needsSetup: boolean;

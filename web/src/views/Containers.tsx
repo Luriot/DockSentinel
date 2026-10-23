@@ -38,7 +38,6 @@ interface ContainerDetail {
   findingCounts: SeverityCounts;
   totalFindings: number;
   scans: ScanRecord[];
-  events: { id: number; kind: string; createdAt: string; vulnId: string; pkgName: string }[];
 }
 
 export function Containers() {

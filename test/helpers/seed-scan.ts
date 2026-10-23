@@ -57,7 +57,7 @@ export function seedSuccessfulScan(
       exitCode: 0,
       warnings: [],
     });
-    updateImageAfterScan(db, options.imageId, scanId, 'success', applied.counts, options.environmentId, {
+    updateImageAfterScan(db, options.imageId, scanId, 'success', applied.counts, {
       family: 'debian',
       version: '11.7',
     });

@@ -520,10 +520,6 @@ p {
   padding: 16px;
 }
 
-.card-body.flush {
-  padding: 0;
-}
-
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

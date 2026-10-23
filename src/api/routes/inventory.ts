@@ -25,7 +25,6 @@ export function registerInventoryRoutes(app: FastifyInstance, ctx: AppContext): 
     const settings = ctx.getSettings();
     return {
       ...buildOverview(ctx.db, settings),
-      scanActivity: { active: ctx.coordinator.activeCount },
     };
   });
 
@@ -175,7 +174,6 @@ export function registerInventoryRoutes(app: FastifyInstance, ctx: AppContext): 
       findingCounts: findings.counts,
       totalFindings: findings.total,
       scans: container.imageId ? listScans(ctx.db, { imageId: container.imageId, page: 1, pageSize: 5 }).items : [],
-      events: container.imageId ? listFindingEvents(ctx.db, container.imageId, 10) : [],
     };
   });
 }

@@ -10,7 +10,7 @@ export type AlertKind =
   | 'stale_scan'
   | 'test';
 
-export type AlertStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'suppressed';
+export type AlertStatus = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface AlertRecord {
   id: number;
@@ -27,7 +27,6 @@ export interface AlertRecord {
   attempts: number;
   nextAttemptAt: string | null;
   lastError: string | null;
-  deliveryId: string | null;
   createdAt: string;
   updatedAt: string;
   sentAt: string | null;
@@ -48,7 +47,6 @@ interface AlertRow {
   attempts: number;
   next_attempt_at: string | null;
   last_error: string | null;
-  delivery_id: string | null;
   created_at: string;
   updated_at: string;
   sent_at: string | null;
@@ -70,7 +68,6 @@ function mapAlert(row: AlertRow): AlertRecord {
     attempts: row.attempts,
     nextAttemptAt: row.next_attempt_at,
     lastError: row.last_error,
-    deliveryId: row.delivery_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sentAt: row.sent_at,
@@ -189,7 +186,6 @@ export function alertStatusCounts(db: Db, since: string): Record<AlertStatus | '
        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
        SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
-       SUM(CASE WHEN status = 'suppressed' THEN 1 ELSE 0 END) AS suppressed,
        COUNT(*) AS total
      FROM alerts WHERE created_at >= ?`,
     [since],
@@ -199,13 +195,12 @@ export function alertStatusCounts(db: Db, since: string): Record<AlertStatus | '
     sending: 0,
     sent: Number(row?.sent ?? 0),
     failed: Number(row?.failed ?? 0),
-    suppressed: Number(row?.suppressed ?? 0),
     total: Number(row?.total ?? 0),
   };
 }
 
 export function pruneAlerts(db: Db, cutoff: string): number {
-  const result = db.run(`DELETE FROM alerts WHERE created_at < ? AND status IN ('sent','failed','suppressed')`, [
+  const result = db.run(`DELETE FROM alerts WHERE created_at < ? AND status IN ('sent','failed')`, [
     cutoff,
   ]);
   return result.changes;

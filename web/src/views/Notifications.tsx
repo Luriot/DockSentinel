@@ -11,7 +11,6 @@ import {
   IconCheck,
   IconRefresh,
   InlineLoading,
-  Modal,
   Pagination,
   TableSkeleton,
   useToast,
@@ -23,7 +22,7 @@ interface NotificationsResponse {
   ntfy: PublicSettings['ntfy'];
   publicUrl: string;
   alerts: { items: AlertRecord[]; total: number; page: number; pageSize: number };
-  counts: { pending: number; sent: number; failed: number; suppressed: number; total: number };
+  counts: { pending: number; sent: number; failed: number; total: number };
 }
 
 export function Notifications() {
@@ -51,7 +50,6 @@ export function Notifications() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmClear, setConfirmClear] = useState(false);
 
   const query = new URLSearchParams();
   if (status) query.set('status', status);
@@ -360,9 +358,6 @@ export function Notifications() {
                   {testing ? <span className="spinner" aria-hidden="true" /> : <IconBell width={14} height={14} />}
                   Send test
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setConfirmClear(true)}>
-                  Clear alert history
-                </button>
               </div>
               <p className="tiny dim">
                 Test delivery uses the saved configuration. Save changes first. Notification failures never affect
@@ -459,7 +454,6 @@ export function Notifications() {
               <option value="pending">Queued</option>
               <option value="sent">Sent</option>
               <option value="failed">Failed</option>
-              <option value="suppressed">Suppressed</option>
             </select>
             <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh">
               <IconRefresh width={14} height={14} />
@@ -559,40 +553,6 @@ export function Notifications() {
           </section>
         </Drawer>
       ) : null}
-
-      {confirmClear ? (
-        <Modal
-          title="Clear alert history?"
-          subtitle="This removes delivered and failed alert records older than the retention window? No — it removes all recorded alerts."
-          onClose={() => setConfirmClear(false)}
-          narrow
-          footer={
-            <>
-              <button type="button" className="btn ghost" onClick={() => setConfirmClear(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn danger"
-                onClick={() => {
-                  toast('Alert history is pruned by retention settings; use Settings to adjust retention.', 'info');
-                  setConfirmClear(false);
-                }}
-              >
-                Understood
-              </button>
-            </>
-          }
-        >
-          <div className="note">
-            DockSentinel does not expose a destructive &quot;delete all alerts&quot; action. Alert history follows the
-            configured retention window (Settings → Retention). Lowering retention is the supported way to shrink it;
-            the database is never manipulated from the UI.
-          </div>
-        </Modal>
-      ) : null}
     </div>
   );
 }
-
-export type { NotificationsResponse };

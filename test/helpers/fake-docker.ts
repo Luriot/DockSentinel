@@ -28,8 +28,6 @@ export interface FakeDockerOptions {
   archives?: Map<string, Buffer>;
   /** Force specific endpoints to fail, keyed by path suffix (e.g. "/images/json"). */
   failures?: Map<string, { status: number; body?: string }>;
-  /** Reject every request with this HTTP status. */
-  failAll?: { status: number; body?: string };
 }
 
 export interface FakeDocker {
@@ -38,7 +36,6 @@ export interface FakeDocker {
   url: string;
   requests: { method: string; path: string }[];
   setFailure(pathSuffix: string, failure: { status: number; body?: string } | null): void;
-  setContainers(containers: FakeDockerContainer[]): void;
   close(): Promise<void>;
 }
 
@@ -86,13 +83,6 @@ export async function startFakeDocker(options: FakeDockerOptions = {}): Promise<
     const method = request.method ?? 'GET';
     const rawUrl = request.url ?? '/';
     requests.push({ method, path: rawUrl });
-
-    if (options.failAll) {
-      sendJson(response, options.failAll.status, {
-        message: options.failAll.body ?? `Forced failure ${options.failAll.status}`,
-      });
-      return;
-    }
 
     const withoutVersion = rawUrl.replace(/^\/v\d+\.\d+/, '');
     const path = withoutVersion.split('?')[0] ?? '/';
@@ -155,10 +145,6 @@ export async function startFakeDocker(options: FakeDockerOptions = {}): Promise<
     setFailure(pathSuffix, failure) {
       if (failure) failures.set(pathSuffix, failure);
       else failures.delete(pathSuffix);
-    },
-    setContainers(next) {
-      containers.length = 0;
-      containers.push(...next);
     },
     async close() {
       await new Promise<void>((resolve) => server.close(() => resolve()));

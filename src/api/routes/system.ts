@@ -155,7 +155,7 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
           type: 'object',
           additionalProperties: true,
           properties: {
-            status: { type: 'string', enum: ['pending', 'sending', 'sent', 'failed', 'suppressed'] },
+            status: { type: 'string', enum: ['pending', 'sending', 'sent', 'failed'] },
             kind: { type: 'string', maxLength: 40 },
             page: { type: 'integer', minimum: 1 },
             pageSize: { type: 'integer', minimum: 1, maximum: 100 },
@@ -189,7 +189,6 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
   app.get('/system', async () => ({
     version: ctx.config.version,
     nodeVersion: process.version,
-    platform: process.platform,
     uptimeSeconds: Math.round((Date.now() - ctx.startedAt) / 1000),
     schemaVersion: SCHEMA_VERSION,
     scanner: await getScannerInfo(ctx.config),

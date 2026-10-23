@@ -82,7 +82,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
 
       setCredentials(ctx.db, username, await hashPassword(body.password));
       deleteAllSessions(ctx.db);
-      const session = createSession(ctx.db, 1, { ip: clientIp(req), userAgent: req.headers['user-agent'] ?? null });
+      const session = createSession(ctx.db, 1);
       setSessionCookie(req, reply, ctx.config, session.token, session.expiresAt);
       ctx.log.info({ username }, 'administrator account created');
       return { authenticated: true, user: { username }, csrfToken: session.csrfToken, needsSetup: false };
@@ -125,7 +125,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       if (!valid) unauthorized('Invalid username or password');
 
       loginLimiter.reset(ip);
-      const session = createSession(ctx.db, user.id, { ip, userAgent: req.headers['user-agent'] ?? null });
+      const session = createSession(ctx.db, user.id);
       setSessionCookie(req, reply, ctx.config, session.token, session.expiresAt);
       ctx.log.info({ username: user.username, ip }, 'login succeeded');
       return { authenticated: true, user: { username: user.username }, csrfToken: session.csrfToken };

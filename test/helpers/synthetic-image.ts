@@ -51,21 +51,12 @@ Version: 7.74.0-1.3+deb11u3
 Description: command line tool for transferring data with URL syntax
 `;
 
-export interface SyntheticImageOptions {
-  tag?: string;
-  /** Add extra layer content, e.g. an application dependency file. */
-  extraEntries?: TarEntry[];
-  /** Set to false to produce an image with no known-vulnerable packages. */
-  vulnerable?: boolean;
-}
-
 /**
  * Builds a tiny Debian 11 docker-save archive with deliberately outdated packages so the real
  * Trivy binary can be exercised without a Docker daemon.
  */
-export function buildSyntheticImage(options: SyntheticImageOptions = {}): SyntheticImage {
-  const tag = options.tag ?? 'docksentinel-test:1';
-  const status = options.vulnerable === false ? '' : VULNERABLE_STATUS;
+export function buildSyntheticImage(): SyntheticImage {
+  const tag = 'docksentinel-test:1';
   const layerEntries: TarEntry[] = [
     { name: 'etc', type: 'directory' },
     {
@@ -77,8 +68,7 @@ export function buildSyntheticImage(options: SyntheticImageOptions = {}): Synthe
     { name: 'var', type: 'directory' },
     { name: 'var/lib', type: 'directory' },
     { name: 'var/lib/dpkg', type: 'directory' },
-    { name: 'var/lib/dpkg/status', content: status },
-    ...(options.extraEntries ?? []),
+    { name: 'var/lib/dpkg/status', content: VULNERABLE_STATUS },
   ];
   const layerTar = createTar(layerEntries);
   const diffId = createHash('sha256').update(layerTar).digest('hex');

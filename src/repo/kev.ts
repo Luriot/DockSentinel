@@ -5,7 +5,6 @@ import type { Logger } from '../logger.ts';
 
 export interface KevLookup {
   dateAdded: string | null;
-  ransomware: string | null;
 }
 
 export interface KevStatus {
@@ -31,11 +30,8 @@ export function kevIsAvailable(db: Db): boolean {
 }
 
 export function lookupKev(db: Db, cveId: string): KevLookup | null {
-  const row = db.get<{ date_added: string | null; ransomware: string | null }>(
-    'SELECT date_added, ransomware FROM kev WHERE cve_id = ?',
-    [cveId],
-  );
-  return row ? { dateAdded: row.date_added, ransomware: row.ransomware } : null;
+  const row = db.get<{ date_added: string | null }>('SELECT date_added FROM kev WHERE cve_id = ?', [cveId]);
+  return row ? { dateAdded: row.date_added } : null;
 }
 
 export function getKevStatus(db: Db): KevStatus {
@@ -88,28 +84,14 @@ export async function syncKev(
     const entries = catalog.vulnerabilities;
     if (!Array.isArray(entries) || entries.length === 0) throw new Error('KEV feed contains no vulnerabilities');
 
-    const valid: {
-      cveId: string;
-      vendor: string | null;
-      product: string | null;
-      name: string | null;
-      dateAdded: string | null;
-      dueDate: string | null;
-      ransomware: string | null;
-    }[] = [];
+    const valid: { cveId: string; dateAdded: string | null }[] = [];
     for (const entry of entries) {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
       const item = entry as Record<string, unknown>;
       if (typeof item.cveID !== 'string' || !/^CVE-\d{4}-\d{4,}$/i.test(item.cveID)) continue;
       valid.push({
         cveId: item.cveID.toUpperCase(),
-        vendor: typeof item.vendorProject === 'string' ? item.vendorProject.slice(0, 200) : null,
-        product: typeof item.product === 'string' ? item.product.slice(0, 200) : null,
-        name: typeof item.vulnerabilityName === 'string' ? item.vulnerabilityName.slice(0, 500) : null,
         dateAdded: typeof item.dateAdded === 'string' ? item.dateAdded.slice(0, 30) : null,
-        dueDate: typeof item.dueDate === 'string' ? item.dueDate.slice(0, 30) : null,
-        ransomware:
-          typeof item.knownRansomwareCampaignUse === 'string' ? item.knownRansomwareCampaignUse.slice(0, 40) : null,
       });
     }
     if (valid.length === 0) throw new Error('KEV feed contained no usable entries');
@@ -131,25 +113,20 @@ export async function syncKev(
       db.run('DELETE FROM kev');
       for (const entry of valid) {
         db.run(
-          `INSERT INTO kev (cve_id, vendor_project, product, name, date_added, due_date, ransomware, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(cve_id) DO UPDATE SET
-             vendor_project = excluded.vendor_project, product = excluded.product, name = excluded.name,
-             date_added = excluded.date_added, due_date = excluded.due_date,
-             ransomware = excluded.ransomware, synced_at = excluded.synced_at`,
-          [entry.cveId, entry.vendor, entry.product, entry.name, entry.dateAdded, entry.dueDate, entry.ransomware, now],
+          `INSERT INTO kev (cve_id, date_added, synced_at) VALUES (?, ?, ?)
+           ON CONFLICT(cve_id) DO UPDATE SET date_added = excluded.date_added, synced_at = excluded.synced_at`,
+          [entry.cveId, entry.dateAdded, now],
         );
       }
 
       db.run(
         `UPDATE findings SET
            kev = 1,
-           kev_added_at = (SELECT date_added FROM kev WHERE kev.cve_id = findings.vuln_id),
-           kev_ransomware = (SELECT ransomware FROM kev WHERE kev.cve_id = findings.vuln_id)
+           kev_added_at = (SELECT date_added FROM kev WHERE kev.cve_id = findings.vuln_id)
          WHERE vuln_id IN (SELECT cve_id FROM kev)`,
       );
       db.run(
-        `UPDATE findings SET kev = 0, kev_added_at = NULL, kev_ransomware = NULL
+        `UPDATE findings SET kev = 0, kev_added_at = NULL
          WHERE kev = 1 AND vuln_id NOT IN (SELECT cve_id FROM kev)`,
       );
 

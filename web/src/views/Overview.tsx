@@ -1,4 +1,4 @@
-import { type OverviewData, type FindingView } from '../api.ts';
+import { type OverviewData } from '../api.ts';
 import { useApi, navigate } from '../hooks.ts';
 import {
   EmptyState,
@@ -478,5 +478,3 @@ export function Overview() {
     </div>
   );
 }
-
-export type { FindingView };

@@ -10,7 +10,6 @@ import {
   setEnvironmentStatus,
   updateEnvironment,
 } from '../../repo/environments.ts';
-import { listScans } from '../../repo/scans.ts';
 import { SEVERITIES, type Severity } from '../../domain/severity.ts';
 
 const ENV_SELECT = `
@@ -197,26 +196,6 @@ export function registerEnvironmentRoutes(app: FastifyInstance, ctx: AppContext)
       return serialize(loadRow(ctx, id)!);
     },
   );
-
-  app.get('/environments/:id', async (req) => {
-    const id = parseId((req.params as { id: string }).id, 'id');
-    const row = loadRow(ctx, id);
-    if (!row) notFound('Environment not found');
-    const environment = getEnvironment(ctx.db, id);
-    const scans = listScans(ctx.db, { environmentId: id, page: 1, pageSize: 8 });
-    return {
-      ...serialize(row),
-      scans: scans.items,
-      policy: environment
-        ? {
-            scanEnabled: environment.scanEnabled,
-            quickIntervalHours: environment.quickIntervalHours,
-            standardIntervalHours: environment.standardIntervalHours,
-            minAlertSeverity: environment.minAlertSeverity,
-          }
-        : null,
-    };
-  });
 
   app.patch('/environments/:id', { schema: { body: environmentBodySchema } }, async (req) => {
     const id = parseId((req.params as { id: string }).id, 'id');

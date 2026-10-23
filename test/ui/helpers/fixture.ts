@@ -182,12 +182,11 @@ export async function seedInstance(dataDir: string): Promise<void> {
     });
 
     db.run(
-      `INSERT INTO kev (cve_id, vendor_project, product, name, date_added, due_date, ransomware, synced_at)
-       VALUES ('CVE-2024-1111', 'OpenSSL', 'OpenSSL', 'OpenSSL buffer overrun', '2026-09-01', '2026-09-20', 'Known', ?)`,
+      `INSERT INTO kev (cve_id, date_added, synced_at) VALUES ('CVE-2024-1111', '2026-09-01', ?)`,
       [nowMinus(12)],
     );
-    db.run(`UPDATE findings SET kev = 0, kev_added_at = NULL, kev_ransomware = NULL`);
-    db.run(`UPDATE findings SET kev = 1, kev_added_at = '2026-09-01', kev_ransomware = 'Known' WHERE vuln_id = 'CVE-2024-1111'`);
+    db.run(`UPDATE findings SET kev = 0, kev_added_at = NULL`);
+    db.run(`UPDATE findings SET kev = 1, kev_added_at = '2026-09-01' WHERE vuln_id = 'CVE-2024-1111'`);
     db.run(
       `UPDATE kev_sync SET status = 'ok', synced_at = ?, catalog_version = '2026.10.01', entry_count = 1, error = NULL WHERE id = 1`,
       [nowMinus(12)],
@@ -211,7 +210,7 @@ export async function seedInstance(dataDir: string): Promise<void> {
         errorMessage: 'Docker image export returned HTTP 500: simulated daemon failure',
         exitCode: null,
       });
-      updateImageAfterScan(db, PHP_IMAGE, null, 'failed', null, 1, null);
+      updateImageAfterScan(db, PHP_IMAGE, null, 'failed', null, null);
     }
 
     const sentAlert = createAlert(db, {
@@ -253,7 +252,6 @@ export async function seedInstance(dataDir: string): Promise<void> {
 export interface UiServer {
   url: string;
   stop: () => Promise<void>;
-  logs: () => string;
 }
 
 export async function startAppServer(dataDir: string): Promise<UiServer> {
@@ -297,7 +295,6 @@ export async function startAppServer(dataDir: string): Promise<UiServer> {
       if (response.ok) {
         return {
           url,
-          logs: () => output.join(''),
           stop: async () => {
             if (child.exitCode === null) {
               child.kill();

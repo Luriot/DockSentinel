@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { api, type SessionInfo } from '../api.ts';
+import { api } from '../api.ts';
 import { IconAlert, IconCheck, IconShield } from './ui.tsx';
 
 interface AuthScreenProps {
@@ -199,5 +199,3 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
     </div>
   );
 }
-
-export type { SessionInfo };

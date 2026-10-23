@@ -204,7 +204,7 @@ export function applyScanFindings(
       db.run(
         `UPDATE findings SET severity = ?, status = ?, title = ?, primary_url = ?, fixed_version = ?, class = ?, type = ?,
            cvss_score = ?, cvss_source = ?, cvss_vector = ?, published_at = ?, modified_at = ?,
-           kev = ?, kev_added_at = ?, kev_ransomware = ?, episode = ?, first_seen_at = ?, last_seen_at = ?,
+           kev = ?, kev_added_at = ?, episode = ?, first_seen_at = ?, last_seen_at = ?,
            last_scan_id = ?, resolved_at = NULL
          WHERE id = ?`,
         [
@@ -222,7 +222,6 @@ export function applyScanFindings(
           finding.modifiedAt,
           kevAvailable ? (kev ? 1 : 0) : -1,
           kev?.dateAdded ?? null,
-          kev?.ransomware ?? null,
           nextEpisode,
           input.now,
           input.now,
@@ -243,8 +242,8 @@ export function applyScanFindings(
       `INSERT INTO findings
         (image_id, target, class, type, vuln_id, pkg_name, installed_version, fixed_version, severity, status,
          title, primary_url, cvss_score, cvss_source, cvss_vector, published_at, modified_at,
-         kev, kev_added_at, kev_ransomware, episode, first_seen_at, last_seen_at, last_scan_id, resolved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, NULL)`,
+         kev, kev_added_at, episode, first_seen_at, last_seen_at, last_scan_id, resolved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, NULL)`,
       [
         input.imageId,
         finding.target,
@@ -265,7 +264,6 @@ export function applyScanFindings(
         finding.modifiedAt,
         kevAvailable ? (kev ? 1 : 0) : -1,
         kev?.dateAdded ?? null,
-        kev?.ransomware ?? null,
         input.now,
         input.now,
         input.scanId,
@@ -298,7 +296,7 @@ export function applyScanFindings(
     db.run(
       `UPDATE findings SET severity = ?, fixed_version = ?, status = ?, title = ?, primary_url = ?,
          cvss_score = ?, cvss_source = ?, cvss_vector = ?, published_at = ?, modified_at = ?,
-         kev = ?, kev_added_at = ?, kev_ransomware = ?, last_seen_at = ?, last_scan_id = ?
+         kev = ?, kev_added_at = ?, last_seen_at = ?, last_scan_id = ?
        WHERE id = ?`,
       [
         normalizeSeverity(finding.severity),
@@ -313,7 +311,6 @@ export function applyScanFindings(
         finding.modifiedAt,
         kevAvailable ? (kev ? 1 : 0) : -1,
         kev?.dateAdded ?? null,
-        kev?.ransomware ?? null,
         input.now,
         input.scanId,
         change.finding.id,
@@ -330,7 +327,7 @@ export function applyScanFindings(
     const kev = kevAvailable ? lookupKev(db, finding.vulnId) : null;
     db.run(
       `UPDATE findings SET last_seen_at = ?, last_scan_id = ?,
-         kev = ?, kev_added_at = ?, kev_ransomware = ?,
+         kev = ?, kev_added_at = ?,
          cvss_score = COALESCE(?, cvss_score), title = COALESCE(?, title), primary_url = COALESCE(?, primary_url)
        WHERE id = (
          SELECT id FROM findings
@@ -341,7 +338,6 @@ export function applyScanFindings(
         input.scanId,
         kevAvailable ? (kev ? 1 : 0) : -1,
         kev?.dateAdded ?? null,
-        kev?.ransomware ?? null,
         finding.cvssScore,
         finding.title,
         finding.primaryUrl,

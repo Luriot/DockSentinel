@@ -25,12 +25,6 @@ export function formatDate(iso: string | null | undefined): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-export function formatDateUtc(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
-  return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-}
 
 export function formatDuration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) return '—';
@@ -66,29 +60,8 @@ export function titleCase(value: string | null | undefined): string {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-export function plural(count: number, singular: string, pluralForm?: string): string {
-  return `${count} ${count === 1 ? singular : (pluralForm ?? `${singular}s`)}`;
-}
 
-export function hostFromAddress(kind: string, address: string): string {
-  if (kind === 'unix') return address;
-  return address;
-}
 
-export function exposureLabel(state: string | null | undefined): string {
-  switch (state) {
-    case 'confirmed':
-      return 'Internet exposure declared';
-    case 'potential':
-      return 'Potentially exposed';
-    case 'internal':
-      return 'No published ports';
-    case 'unknown':
-      return 'Unknown exposure';
-    default:
-      return 'Unknown exposure';
-  }
-}
 
 export function exposureShortLabel(state: string | null | undefined): string {
   switch (state) {
@@ -100,37 +73,5 @@ export function exposureShortLabel(state: string | null | undefined): string {
       return 'Internal';
     default:
       return 'Unknown';
-  }
-}
-
-export function scanStatusLabel(status: string | null | undefined): string {
-  switch (status) {
-    case 'success':
-      return 'Scan clean or findings recorded';
-    case 'failed':
-      return 'Scan failed';
-    case 'running':
-      return 'Scanning';
-    case 'queued':
-      return 'Queued';
-    case 'cancelled':
-      return 'Cancelled';
-    default:
-      return 'Never scanned';
-  }
-}
-
-export function severityOrder(severity: string): number {
-  switch (severity) {
-    case 'CRITICAL':
-      return 4;
-    case 'HIGH':
-      return 3;
-    case 'MEDIUM':
-      return 2;
-    case 'LOW':
-      return 1;
-    default:
-      return 0;
   }
 }

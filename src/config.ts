@@ -60,7 +60,6 @@ export type CookieSecureMode = 'auto' | 'always' | 'never';
 
 export interface Config {
   readonly version: string;
-  readonly projectRoot: string;
   readonly port: number;
   readonly host: string;
   readonly dataDir: string;
@@ -79,7 +78,6 @@ export interface Config {
   readonly imageExportTimeoutMs: number;
   readonly setupToken: string | null;
   readonly kevUrl: string;
-  readonly isTest: boolean;
 }
 
 export function loadConfig(overrides: Partial<Config> = {}): Config {
@@ -93,7 +91,6 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
 
   return {
     version: readVersion(),
-    projectRoot,
     port: overrides.port ?? intEnv('PORT', 8080, 1, 65535),
     host: overrides.host ?? process.env.HOST ?? '0.0.0.0',
     dataDir,
@@ -121,6 +118,5 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
       overrides.kevUrl ??
       process.env.KEV_URL ??
       'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
-    isTest,
   };
 }

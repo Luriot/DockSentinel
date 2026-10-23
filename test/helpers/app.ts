@@ -37,8 +37,6 @@ export interface TestAppOptions {
   scanTimeoutMs?: number;
   logLevel?: string;
   kevUrl?: string;
-  /** Start the scan worker loop and scheduler inside the harness. */
-  runWorkers?: boolean;
 }
 
 export function createTestContext(config: Config, db: Db, log: ReturnType<typeof createLogger>): AppContext {
@@ -84,17 +82,11 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     maxImageExportBytes: 64 * 1024 * 1024,
     imageExportTimeoutMs: 30_000,
     kevUrl: options.kevUrl ?? 'http://127.0.0.1:1/kev.json',
-    isTest: true,
   });
   const log = createLogger('silent');
   const db = Db.open(config.dbPath);
   const ctx = createTestContext(config, db, log);
   const app = await buildServer(ctx);
-  if (options.runWorkers) {
-    await ctx.coordinator.start();
-    ctx.dispatcher.start(10_000);
-    ctx.scheduler.start(60_000);
-  }
 
   const harness: TestApp = {
     app,

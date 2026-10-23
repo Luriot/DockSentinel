@@ -56,11 +56,9 @@ export interface OverviewData {
     pending: number;
     sent24h: number;
     failed24h: number;
-    total24h: number;
   };
   findings: {
     top: ReturnType<typeof listFindings>['items'];
-    totalOpen: number;
   };
   events: ReturnType<typeof recentFindingEvents>;
   kev: KevStatus;
@@ -211,9 +209,8 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
       pending: alertCounts.pending,
       sent24h: alertCounts.sent,
       failed24h: alertCounts.failed,
-      total24h: alertCounts.total,
     },
-    findings: { top: findings.items, totalOpen: findings.total },
+    findings: { top: findings.items },
     events: recentFindingEvents(db, 10),
     kev: getKevStatus(db),
     lastDiscoveryAt,

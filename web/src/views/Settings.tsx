@@ -21,7 +21,6 @@ interface SettingsResponse {
 interface SystemResponse {
   version: string;
   nodeVersion: string;
-  platform: string;
   uptimeSeconds: number;
   schemaVersion: number;
   scanner: ScannerInfo;
