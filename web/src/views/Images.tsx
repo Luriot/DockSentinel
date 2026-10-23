@@ -199,7 +199,7 @@ export function Images() {
                 <thead>
                   <tr>
                     <th scope="col">Image</th>
-                    <th scope="col">Environments</th>
+                    <th scope="col">Hosts</th>
                     <th scope="col">Containers</th>
                     <th scope="col">Findings</th>
                     <th scope="col">Fixes</th>

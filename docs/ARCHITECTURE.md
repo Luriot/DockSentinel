@@ -39,6 +39,7 @@ src/
 │  └─ content.ts            opt-in misconfiguration/secret metadata and identity
 ├─ docker/
 │  ├─ client.ts             read-only Docker API client (unix/tcp/tls), image export
+│  ├─ detect.ts             local Docker candidate probing for first-run setup
 │  └─ normalize.ts          Docker JSON → internal container/image shapes
 ├─ discovery.ts             per-endpoint discovery and connectivity test
 ├─ scanner/
@@ -65,6 +66,8 @@ src/
 ├─ auth.ts, passwords.ts, secrets.ts, security/rate-limit.ts
 ├─ scripts/native.ts        native launcher (loopback default, managed Trivy)
 ├─ scripts/native-setup.ts  UI build + checksum-verified Trivy installer
+├─ scripts/install-windows.ps1  double-click Windows installer (portable Node + shortcuts)
+├─ web/src/views/Welcome.tsx    one-click first-run Docker onboarding
 ├─ api/
 │  ├─ server.ts             Fastify instance, security headers, auth hook, static SPA
 │  ├─ http.ts               session/CSRF/origin helpers, pagination
@@ -155,9 +158,12 @@ parsing.
 `scripts/native.ts` sets a per-user `DATA_DIR`, binds to `127.0.0.1` unless configured otherwise, selects
 the managed or configured Trivy binary, and calls the exported `start()` bootstrap. `native-setup.ts`
 builds the SPA and downloads the pinned official Trivy archive, verifies its SHA-256 checksum, installs it
-atomically and checks `trivy --version`. Startup preflight reports a missing UI build, unwritable data
-folder, port conflict and unsupported Node version with actionable messages. The Docker entrypoint is
-unchanged.
+atomically and checks `trivy --version`. `install-windows.ps1` additionally installs a checksum-verified
+private Node.js runtime and creates per-user shortcuts, so Windows users do not need system Node/Trivy.
+Startup preflight reports a missing UI build, unwritable data folder, port conflict and unsupported Node
+version with actionable messages. `GET /api/environments/detect` probes local Docker Desktop named pipes
+and Unix sockets; the welcome screen uses `POST /api/environments/local` to create the host and run
+discovery in one click. The Docker entrypoint is unchanged.
 
 Why export the image instead of letting Trivy talk to the Docker daemon:
 

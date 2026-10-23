@@ -73,11 +73,25 @@ If discovery fails with permission denied, set `DOCKER_GID` to the socket's grou
 
 ## Run natively (without the DockSentinel container)
 
-DockSentinel itself can run directly with Node.js. This does **not** remove the need for a Docker
-endpoint: use a local Docker Engine, a Windows Docker Desktop named pipe, or a remote TCP/TLS endpoint.
+DockSentinel itself can run directly on your computer. This does **not** remove the need for a Docker
+endpoint: use Docker Desktop on the same computer, or a remote TCP/TLS endpoint.
 
-**Prerequisite:** Node.js **24.12 or newer** (the app uses native TypeScript execution and `node:sqlite`).
-The installer downloads the matching official Trivy release and verifies its SHA-256 checksum.
+### Windows: double-click installer (recommended)
+
+1. Keep the DockSentinel folder somewhere permanent (for example `C:\DockSentinel`).
+2. Double-click **`Install-DockSentinel.cmd`**.
+3. It installs a private Node.js runtime and a verified Trivy copy under
+   `%LOCALAPPDATA%\DockSentinel`, builds the UI, and creates Desktop and Start Menu shortcuts.
+4. DockSentinel starts and opens the browser. The **setup code** is shown in the DockSentinel window.
+5. On the welcome screen, click **Use Docker on this computer** (or connect a remote host).
+
+No system Node.js, Trivy, administrator rights or Docker Compose are required. The installer verifies the
+official Node.js and Trivy checksums before using either download.
+
+### macOS / Linux, or command-line install
+
+**Prerequisite:** Node.js **24.12 or newer**. The setup command downloads the matching official Trivy
+release and verifies its SHA-256 checksum.
 
 ```bash
 npm ci
@@ -97,9 +111,9 @@ Native data defaults to a per-user application folder:
 The database, encryption key, Trivy cache, scratch space and managed Trivy binary live there. Override
 with `DATA_DIR`. The launcher binds to `127.0.0.1` by default; set `HOST`/`PORT` deliberately to expose it.
 
-Add a Docker environment after setup:
+After setup, the welcome screen detects Docker for you. If you prefer the manual form:
 
-- **Windows Docker Desktop:** kind `unix`, address `//./pipe/docker_engine`.
+- **Windows Docker Desktop:** kind `unix`, address `//./pipe/dockerDesktopLinuxEngine` (or `//./pipe/docker_engine`).
 - **Linux/macOS local Docker:** kind `unix`, address `/var/run/docker.sock`.
 - **Remote:** kind `tcp` or `tls`, address `host:2376`.
 

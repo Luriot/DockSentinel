@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
-import { api, type EnvironmentSummary, type Severity } from '../api.ts';
-import { useApi } from '../hooks.ts';
+import { useEffect, useState, type FormEvent } from 'react';
+import { api, type EnvironmentSummary, type LocalEnvironmentResult, type Severity } from '../api.ts';
+import { useApi, useRoute } from '../hooks.ts';
 import {
   ConfirmDialog,
   EmptyState,
@@ -26,11 +26,38 @@ export function Environments() {
     intervalMs: 30_000,
   });
   const toast = useToast();
+  const route = useRoute();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<EnvironmentSummary | null>(null);
   const [deleting, setDeleting] = useState<EnvironmentSummary | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [localBusy, setLocalBusy] = useState(false);
+
+  useEffect(() => {
+    if (route.params.get('new') === '1') {
+      setEditing(null);
+      setFormOpen(true);
+    }
+  }, [route.params]);
+
+  async function connectLocal(): Promise<void> {
+    setLocalBusy(true);
+    try {
+      const result = await api.post<LocalEnvironmentResult>('/environments/local', {});
+      toast(
+        result.created
+          ? `Connected to ${result.environment.name}. Discovery found ${result.discovery?.containers ?? 0} containers and ${result.discovery?.images ?? 0} images.`
+          : `${result.environment.name} is already connected.`,
+        'success',
+      );
+      await refresh();
+    } catch (connectError) {
+      toast(connectError instanceof Error ? connectError.message : 'Could not find Docker on this computer', 'error');
+    } finally {
+      setLocalBusy(false);
+    }
+  }
 
   async function testEnvironment(environment: EnvironmentSummary): Promise<void> {
     setBusyId(environment.id);
@@ -107,31 +134,33 @@ export function Environments() {
     <div className="vstack" style={{ gap: 16 }}>
       <div className="note info">
         <strong>Docker access is privileged.</strong> DockSentinel only reads container and image metadata and never
-        starts, stops or modifies containers. Prefer a local socket or a TLS-protected endpoint; never expose an
-        unauthenticated Docker TCP API. Endpoints are read-only from DockSentinel&apos;s perspective.
+        starts, stops or modifies containers. Prefer a local socket or a TLS-protected remote host.
       </div>
 
       <div className="spread">
         <div>
-          <h2 className="section-title">Configured endpoints</h2>
+          <h2 className="section-title">Docker hosts</h2>
           <p className="section-subtitle">
-            Each endpoint is an independent environment. One unavailable host never blocks discovery or scanning of the
-            others.
+            DockSentinel can watch several Docker hosts. One unavailable host never blocks the others.
           </p>
         </div>
         <div className="hstack">
           <button type="button" className="btn ghost" onClick={refresh} disabled={loading}>
             <IconRefresh width={14} height={14} /> Refresh
           </button>
+          <button type="button" className="btn primary" onClick={() => void connectLocal()} disabled={localBusy}>
+            {localBusy ? <span className="spinner" aria-hidden="true" /> : <IconServer width={15} height={15} />}
+            Use Docker on this computer
+          </button>
           <button
             type="button"
-            className="btn primary"
+            className="btn ghost"
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
             }}
           >
-            <IconPlus width={15} height={15} /> Add environment
+            <IconPlus width={15} height={15} /> Connect remote host
           </button>
         </div>
       </div>
@@ -148,22 +177,28 @@ export function Environments() {
         <div className="card">
           <EmptyState
             icon={<IconServer width={28} height={28} />}
-            title="No Docker environments yet"
+            title="No Docker host connected yet"
             action={
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-              >
-                <IconPlus width={15} height={15} /> Add your first endpoint
-              </button>
+              <div className="hstack">
+                <button type="button" className="btn primary" onClick={() => void connectLocal()} disabled={localBusy}>
+                  {localBusy ? <span className="spinner" aria-hidden="true" /> : <IconServer width={15} height={15} />}
+                  Use Docker on this computer
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    setEditing(null);
+                    setFormOpen(true);
+                  }}
+                >
+                  <IconPlus width={15} height={15} /> Connect remote host
+                </button>
+              </div>
             }
           >
-            Add the local Docker socket (<code className="kv-code">/var/run/docker.sock</code>) or a secure remote
-            endpoint. DockSentinel will discover containers and images, then start scanning images.
+            Start Docker Desktop (or the Docker service), then use the one-click option. You can also connect a remote
+            host with TCP or mutual TLS.
           </EmptyState>
         </div>
       ) : null}
@@ -380,7 +415,7 @@ function EnvironmentForm({
 
   return (
     <Modal
-      title={editing ? `Edit ${environment?.name}` : 'Add Docker environment'}
+      title={editing ? `Edit ${environment?.name}` : 'Connect a Docker host'}
       subtitle="DockSentinel only performs read-only Docker API calls."
       onClose={onClose}
       footer={
@@ -390,7 +425,7 @@ function EnvironmentForm({
           </button>
           <button type="submit" form="environment-form" className="btn primary" disabled={busy}>
             {busy ? <span className="spinner" aria-hidden="true" /> : null}
-            {editing ? 'Save changes' : 'Add environment'}
+            {editing ? 'Save changes' : 'Connect host'}
           </button>
         </>
       }

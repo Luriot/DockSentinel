@@ -123,11 +123,11 @@ test('environments show independent status and validate unsafe addresses', async
   await expect(page.getByRole('article', { name: 'Remote Office' })).toContainText('Offline');
   await expect(page.getByText('Docker access is privileged.').first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Add environment' }).click();
+  await page.getByRole('button', { name: 'Connect remote host' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name').fill('Broken endpoint');
   await dialog.getByLabel('Socket path').fill('relative.sock');
-  await dialog.getByRole('button', { name: 'Add environment' }).click();
+  await dialog.getByRole('button', { name: 'Connect host' }).click();
   await expect(dialog.getByRole('alert')).toContainText('absolute path');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await page.screenshot({ path: join(SCREENS, '04-environments.png'), fullPage: true });
@@ -136,7 +136,7 @@ test('environments show independent status and validate unsafe addresses', async
 test('scan activity distinguishes failures from clean scans', async ({ page }) => {
   await login(page);
   await page.goto(`${server.url}/scans`);
-  await expect(page.getByRole('heading', { name: 'Scan activity', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Scans', level: 1 })).toBeVisible();
   const failedRow = page.locator('table tbody tr').filter({ hasText: 'Failed' }).first();
   await expect(failedRow).toBeVisible();
   await failedRow.click();
@@ -228,19 +228,20 @@ test('first-run setup requires the setup token and creates the administrator', a
   const freshServer = await startAppServer(freshDir);
   try {
     await page.goto(freshServer.url);
-    await expect(page.getByRole('heading', { name: 'Set up DockSentinel' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Create your admin account' })).toBeVisible();
 
-    await page.getByLabel('Setup token').fill('wrong-token');
+    await page.getByLabel('Setup code').fill('wrong-token');
     await page.getByLabel('Username').fill('admin');
     await page.getByLabel('Password', { exact: true }).fill('a-long-and-strong-password');
     await page.getByLabel('Confirm password').fill('a-long-and-strong-password');
     await page.getByRole('button', { name: 'Create account and continue' }).click();
     await expect(page.getByRole('alert')).toContainText('Invalid setup token');
 
-    await page.getByLabel('Setup token').fill('ui-setup-token');
+    await page.getByLabel('Setup code').fill('ui-setup-token');
     await page.getByRole('button', { name: 'Create account and continue' }).click();
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
-    await expect(page.getByText('Connect your first Docker environment')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Welcome', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Let's connect Docker" })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Use Docker on this computer' })).toBeVisible();
     await page.screenshot({ path: join(SCREENS, '09-setup-empty.png'), fullPage: true });
   } finally {
     await freshServer.stop();

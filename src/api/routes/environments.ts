@@ -3,10 +3,12 @@ import type { AppContext } from '../context.ts';
 import { ApiError, badRequest, conflict, notFound } from '../errors.ts';
 import { parseId } from '../http.ts';
 import { parseAddress } from '../../docker/client.ts';
+import { detectLocalDocker } from '../../docker/detect.ts';
 import {
   createEnvironment,
   deleteEnvironment,
   getEnvironment,
+  listEnvironments,
   setEnvironmentStatus,
   updateEnvironment,
 } from '../../repo/environments.ts';
@@ -152,6 +154,87 @@ export function registerEnvironmentRoutes(app: FastifyInstance, ctx: AppContext)
   app.get('/environments', async () => ({
     items: ctx.db.all<EnvironmentRow>(`${ENV_SELECT} ORDER BY e.name COLLATE NOCASE`).map(serialize),
   }));
+
+  app.get('/environments/detect', async () => {
+    const candidates = await detectLocalDocker();
+    return {
+      available: candidates.some((candidate) => candidate.available),
+      candidates: candidates.map((candidate) => ({
+        label: candidate.label,
+        kind: candidate.kind,
+        address: candidate.address,
+        available: candidate.available,
+        version: candidate.version,
+        error: candidate.available ? null : 'Not reachable',
+      })),
+    };
+  });
+
+  app.post('/environments/local', async (_req, reply) => {
+    const candidates = await detectLocalDocker();
+    const detected = candidates.find((candidate) => candidate.available);
+    if (!detected) {
+      reply.code(409);
+      return {
+        error: {
+          code: 'docker_not_found',
+          message:
+            'Docker was not found on this computer. Start Docker Desktop (or the Docker service), then try again. You can also connect a remote Docker host.',
+        },
+      };
+    }
+
+    const existing = listEnvironments(ctx.db).find(
+      (environment) => environment.kind === detected.kind && environment.address === detected.address,
+    );
+    if (existing) {
+      reply.code(200);
+      return {
+        created: false,
+        environment: serialize(loadRow(ctx, existing.id)!),
+        detection: detected,
+        discovery: null,
+      };
+    }
+
+    const names = new Set(listEnvironments(ctx.db).map((environment) => environment.name.toLowerCase()));
+    let name = 'This computer';
+    for (let suffix = 2; names.has(name.toLowerCase()); suffix += 1) name = `This computer (${suffix})`;
+    const settings = ctx.getSettings();
+    const id = createEnvironment(
+      ctx.db,
+      {
+        name,
+        kind: detected.kind,
+        address: detected.address,
+        enabled: true,
+        scanEnabled: true,
+        quickIntervalHours: settings.defaultQuickIntervalHours,
+        standardIntervalHours: settings.defaultStandardIntervalHours,
+        minAlertSeverity: settings.minAlertSeverity,
+      },
+      ctx.config.secretKey,
+    );
+    ctx.log.info({ environmentId: id, name, address: detected.address }, 'local Docker environment created');
+    const environment = getEnvironment(ctx.db, id);
+    let discovery = null;
+    let warning: string | null = null;
+    if (environment) {
+      try {
+        discovery = await ctx.discovery.discover(environment);
+      } catch (error) {
+        warning = error instanceof Error ? error.message : String(error);
+      }
+    }
+    reply.code(201);
+    return {
+      created: true,
+      environment: serialize(loadRow(ctx, id)!),
+      detection: detected,
+      discovery,
+      warning,
+    };
+  });
 
   app.post(
     '/environments',

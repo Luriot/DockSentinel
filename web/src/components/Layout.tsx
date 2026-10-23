@@ -24,6 +24,7 @@ import { Containers } from '../views/Containers.tsx';
 import { Images } from '../views/Images.tsx';
 import { Vulnerabilities } from '../views/Vulnerabilities.tsx';
 import { Content } from '../views/Content.tsx';
+import { Welcome } from '../views/Welcome.tsx';
 import { Scans } from '../views/Scans.tsx';
 import { Notifications } from '../views/Notifications.tsx';
 import { Settings } from '../views/Settings.tsx';
@@ -41,8 +42,8 @@ const ROUTES: Record<string, RouteDefinition> = {
     component: Overview,
   },
   '/environments': {
-    title: 'Environments',
-    subtitle: 'Docker endpoints DockSentinel monitors',
+    title: 'Docker hosts',
+    subtitle: 'The Docker engines DockSentinel watches',
     component: Environments,
   },
   '/containers': {
@@ -66,12 +67,12 @@ const ROUTES: Record<string, RouteDefinition> = {
     component: Content,
   },
   '/scans': {
-    title: 'Scan activity',
+    title: 'Scans',
     subtitle: 'Running, scheduled, successful and failed scans',
     component: Scans,
   },
   '/notifications': {
-    title: 'Notifications',
+    title: 'Alerts',
     subtitle: 'ntfy delivery, alert policy and history',
     component: Notifications,
   },
@@ -94,7 +95,7 @@ const NAV_GROUPS = [
   {
     label: 'Inventory',
     items: [
-      { path: '/environments', label: 'Environments', icon: IconServer },
+      { path: '/environments', label: 'Docker hosts', icon: IconServer },
       { path: '/containers', label: 'Containers', icon: IconBox },
       { path: '/images', label: 'Images', icon: IconLayers },
     ],
@@ -102,8 +103,8 @@ const NAV_GROUPS = [
   {
     label: 'Operations',
     items: [
-      { path: '/scans', label: 'Scan activity', icon: IconActivity },
-      { path: '/notifications', label: 'Notifications', icon: IconBell },
+      { path: '/scans', label: 'Scans', icon: IconActivity },
+      { path: '/notifications', label: 'Alerts', icon: IconBell },
     ],
   },
   {
@@ -145,6 +146,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
     subtitle: 'This page does not exist',
     component: NotFound,
   };
+  const welcome = route.path === '/' && overview.data !== null && (overview.data.environments.length === 0);
   const View = definition.component;
   const critical = overview.data?.counts.critical ?? 0;
   const high = overview.data?.counts.high ?? 0;
@@ -245,8 +247,8 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
         <div className="main">
           <header className="topbar">
             <div className="page-heading">
-              <h1>{definition.title}</h1>
-              <p>{definition.subtitle}</p>
+              <h1>{welcome ? 'Welcome' : definition.title}</h1>
+              <p>{welcome ? 'A few steps to start watching your Docker images' : definition.subtitle}</p>
             </div>
             <div className="topbar-right">
               {environments.length > 0 ? (
@@ -318,7 +320,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
           </header>
 
           <main id="main" className="content">
-            <View />
+            {welcome ? <Welcome onConnected={() => overview.refresh()} /> : <View />}
           </main>
         </div>
       </div>

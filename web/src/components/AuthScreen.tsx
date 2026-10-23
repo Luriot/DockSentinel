@@ -49,23 +49,23 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
               <span className="brand-tag">Docker vulnerability watch</span>
             </span>
           </div>
-          <h1>Know what is exploitable in your containers, before someone else does.</h1>
+          <h1>Know what is risky in your containers, before someone else does.</h1>
           <p className="lede">
-            DockSentinel orchestrates Trivy across your Docker environments, keeps a history of findings,
-            and alerts you when a serious vulnerability appears in a workload you expose.
+            DockSentinel checks your Docker images with Trivy, keeps a clear history, and alerts you when a
+            serious vulnerability appears in something you run.
           </p>
           <div className="auth-points">
             <div className="auth-point">
               <IconCheck width={16} height={16} />
-              <span>Scans images with Trivy and explains severity, fixes and exposure context.</span>
+              <span>Checks images for known vulnerabilities and explains severity, fixes and exposure.</span>
             </div>
             <div className="auth-point">
               <IconCheck width={16} height={16} />
-              <span>Prioritises known-exploited and Internet-facing risks instead of dumping raw CVE lists.</span>
+              <span>Highlights known-exploited and Internet-facing risks instead of dumping raw CVE lists.</span>
             </div>
             <div className="auth-point">
               <IconCheck width={16} height={16} />
-              <span>Sends deduplicated ntfy alerts; failures and stale results are never shown as clean scans.</span>
+              <span>Sends optional ntfy alerts; failures and stale results are never shown as clean scans.</span>
             </div>
           </div>
         </div>
@@ -78,10 +78,10 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
       <section className="auth-form-side">
         <div className="auth-card">
           <div>
-            <h2>{needsSetup ? 'Set up DockSentinel' : 'Sign in'}</h2>
+            <h2>{needsSetup ? 'Create your admin account' : 'Sign in'}</h2>
             <p className="sub" style={{ marginTop: 6 }}>
               {needsSetup
-                ? 'Create the administrator account. The setup token is printed once in the server logs.'
+                ? 'One-time setup. You only need the setup code shown when DockSentinel started.'
                 : 'Enter the administrator credentials for this instance.'}
             </p>
           </div>
@@ -90,7 +90,7 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
             {needsSetup ? (
               <>
                 <div className="field">
-                  <label htmlFor="setup-token">Setup token</label>
+                  <label htmlFor="setup-token">Setup code</label>
                   <input
                     id="setup-token"
                     className="input mono"
@@ -101,8 +101,8 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
                     required
                   />
                   <span className="hint">
-                    Printed in the container logs on first start. Alternatively set <code>SETUP_TOKEN</code> before
-                    launching.
+                    Shown once in the DockSentinel window or terminal when it started. The Windows installer keeps that
+                    window open. In Docker, check the container logs.
                   </span>
                 </div>
                 <div className="field">
@@ -129,7 +129,7 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
                     required
                     minLength={12}
                   />
-                  <span className="hint">At least 12 characters. Stored with scrypt.</span>
+                  <span className="hint">At least 12 characters. Use a password manager if you can.</span>
                 </div>
                 <div className="field">
                   <label htmlFor="confirm-password">Confirm password</label>

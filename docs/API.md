@@ -29,7 +29,8 @@ administrative endpoints. All JSON responses use camelCase. Errors have the shap
 | Method | Path | Notes |
 | --- | --- | --- |
 | `GET` | `/api/overview` | Dashboard aggregates, top findings, recent activity, environments |
-| `GET` | `/api/environments` | Endpoint list with status and counts |
+| `GET` | `/api/environments` | Docker host list with status and counts |
+| `GET` | `/api/environments/detect` | Probes local Docker Desktop/named-pipe/Unix socket candidates for the welcome screen |
 | `GET` | `/api/images` | Filters: `q`, `envId`, `minSeverity=critical\|high`, `neverScanned`, `stale`, `page`, `pageSize` |
 | `GET` | `/api/images/:imageId` | Image inventory, containers, findings, counts, scans, events |
 | `GET` | `/api/containers` | Filters: `q`, `envId`, `status=running\|stopped\|all`, `exposure`, `includeRemoved`, paging |
@@ -53,6 +54,7 @@ Image IDs contain `:`. Encode them in the path (`sha256%3A…`); Fastify decodes
 | Method | Path | Body |
 | --- | --- | --- |
 | `POST` | `/api/environments` | `name`, `kind` (`unix`/`tcp`/`tls`), `address`, optional TLS PEM fields, intervals, thresholds, enabled flags |
+| `POST` | `/api/environments/local` | One-click local Docker: probes candidates, creates/reuses `This computer`, runs discovery. `409` when no Docker is reachable |
 | `PATCH` | `/api/environments/:id` | Same fields, all optional. Unknown fields are stripped |
 | `DELETE` | `/api/environments/:id` | Refused while a scan for that endpoint is queued/running |
 | `POST` | `/api/environments/:id/test` | Connectivity test; returns `{ ok, message, containers, images }` |

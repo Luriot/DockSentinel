@@ -182,6 +182,23 @@ export interface ImageSummary {
   references: ImageReference[];
 }
 
+export interface LocalDockerCandidate {
+  label: string;
+  kind: 'unix' | 'tcp' | 'tls';
+  address: string;
+  available: boolean;
+  version: { Version?: string; ApiVersion?: string; Os?: string; Arch?: string } | null;
+  error: string | null;
+}
+
+export interface LocalEnvironmentResult {
+  created: boolean;
+  environment: EnvironmentSummary;
+  detection: LocalDockerCandidate;
+  discovery: { containers: number; images: number; warnings: string[] } | null;
+  warning?: string | null;
+}
+
 export interface EnvironmentSummary {
   id: number;
   name: string;

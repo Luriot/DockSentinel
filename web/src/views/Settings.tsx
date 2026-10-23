@@ -316,7 +316,7 @@ export function Settings() {
           </div>
           <div className="note" style={{ marginTop: 12 }}>
             Notifications are deduplicated per finding lifecycle and grouped per image and scan. The public base URL for
-            notification links is configured on the Notifications page.
+            notification links is configured on the Alerts page.
           </div>
         </div>
       </section>

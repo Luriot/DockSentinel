@@ -18,6 +18,15 @@ reverse-proxying it, upgrading, backing up and troubleshooting.
 DockSentinel can run directly with Node.js while still monitoring Docker endpoints. The app process does
 not require Docker, but a Docker endpoint is still needed to discover and scan workloads.
 
+### Windows installer
+
+Double-click `Install-DockSentinel.cmd` from the DockSentinel folder. It installs a private Node.js
+24.12 runtime and verified Trivy under `%LOCALAPPDATA%\DockSentinel`, runs the UI build, creates Desktop
+and Start Menu shortcuts, and launches DockSentinel. It does not require administrator rights or a system
+Node.js/Trivy installation. Node and Trivy downloads are checksum-verified before execution.
+
+### Command-line (macOS/Linux/advanced)
+
 **Prerequisite:** Node.js 24.12+ (native TypeScript execution and `node:sqlite`). Node's single-executable
 application support is still active development and would require bundling/asset plumbing, so this release
 does not ship a self-contained executable. The Docker image remains the dependency-free deployment.
@@ -49,13 +58,13 @@ failures (port in use, missing UI build, unwritable data folder, missing scanner
 
 Connect Docker after setup:
 
-- Windows Docker Desktop: kind `unix`, address `//./pipe/docker_engine`.
+- Windows Docker Desktop: kind `unix`, address `//./pipe/dockerDesktopLinuxEngine` (or `//./pipe/docker_engine`).
 - Linux/macOS local Docker: kind `unix`, address `/var/run/docker.sock`.
 - Remote host: `tcp` or `tls` with `host:2376`.
 
-Verified on Windows: checksum-verified Trivy install, native launch and health, first-run setup, Docker
-Desktop named-pipe discovery, a real vulnerability scan with the managed scanner, port-conflict guidance and
-restart persistence. macOS/Linux native installation uses the same Node code but the tar/launcher path was
+Verified on Windows: double-click installer with both system and portable Node (checksum-verified), UI build,
+Desktop/Start Menu shortcuts, first-run setup, one-click Docker Desktop named-pipe discovery from the welcome
+screen, a real vulnerability scan with the managed scanner, port-conflict guidance and restart persistence. macOS/Linux native installation uses the same Node code but the tar/launcher path was
 not executed in this environment; treat those platforms as untested. Graceful signal handling is shared with
 the container path (verified there).
 

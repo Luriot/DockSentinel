@@ -79,6 +79,8 @@ export function Overview() {
     );
   }
 
+  const waitingForFirstScan = data.scans.success24h === 0;
+  const scansInFlight = data.scans.queued + data.scans.running;
   const offline = data.environments.filter((environment) => environment.status === 'offline');
   const attention: { label: string; detail: string; path: string; tone: 'danger' | 'warn' | 'neutral' }[] = [];
   if (offline.length > 0) {
@@ -140,6 +142,31 @@ export function Overview() {
 
   return (
     <div className="vstack" style={{ gap: 18 }}>
+      {waitingForFirstScan ? (
+        <section className="card" aria-label="Getting started">
+          <div className="card-body hstack" style={{ alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
+            <span className="welcome-step-icon" aria-hidden="true">
+              <IconActivity width={18} height={18} />
+            </span>
+            <div className="vstack" style={{ gap: 3, flex: 1, minWidth: 260 }}>
+              <strong>{scansInFlight > 0 ? 'Scanning your images…' : 'Your Docker host is connected'}</strong>
+              <span className="small dim">
+                {scansInFlight > 0
+                  ? `${scansInFlight} scan${scansInFlight === 1 ? '' : 's'} queued or running. Results appear as each image finishes.`
+                  : 'Discovery is complete, but no scan has finished yet. Open Images to queue a scan or check the host status.'}
+              </span>
+            </div>
+            <div className="hstack">
+              <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
+                <IconServer width={13} height={13} /> Images
+              </button>
+              <button type="button" className="btn small ghost" onClick={() => navigate('/notifications')}>
+                <IconBell width={13} height={13} /> Set up alerts
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
       <div className="kpi-grid">
         <button type="button" className="kpi critical" onClick={() => navigate('/vulnerabilities?severity=CRITICAL')} style={{ textAlign: 'left', cursor: 'pointer' }}>
           <div className="kpi-label">
@@ -360,7 +387,7 @@ export function Overview() {
           <section className="card" aria-labelledby="scan-summary-title">
             <div className="card-header">
               <h2 className="section-title" id="scan-summary-title">
-                Scan activity
+                Scans
               </h2>
               {data.scans.running > 0 ? (
                 <ScanStatusBadge status="running" />
@@ -391,7 +418,7 @@ export function Overview() {
               </div>
               <div className="hstack" style={{ gridColumn: '1 / -1', gap: 6 }}>
                 <button type="button" className="btn small ghost" onClick={() => navigate('/scans')}>
-                  <IconActivity width={14} height={14} /> Scan activity
+                  <IconActivity width={14} height={14} /> Scans
                 </button>
                 <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
                   <IconPlay width={13} height={13} /> Scan images

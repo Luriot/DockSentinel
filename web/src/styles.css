@@ -1870,3 +1870,136 @@ table.table tbody tr.clickable:hover {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* First-run welcome */
+.welcome {
+  display: grid;
+  gap: 16px;
+  max-width: 1080px;
+}
+
+.welcome-hero {
+  position: relative;
+  padding: 34px 34px 30px;
+  background:
+    radial-gradient(700px 240px at 85% -20%, rgba(45, 212, 191, 0.14), transparent 70%),
+    linear-gradient(180deg, rgba(45, 212, 191, 0.04), transparent 45%),
+    var(--panel);
+}
+
+.welcome-hero h2 {
+  margin: 4px 0 10px;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+.welcome-hero > p {
+  max-width: 720px;
+  color: var(--text-muted);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0 14px;
+}
+
+.welcome-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(61, 220, 151, 0.35);
+  border-radius: 50%;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.welcome-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.welcome-step {
+  padding: 20px;
+}
+
+.welcome-step h3 {
+  margin: 12px 0 6px;
+  font-size: 15px;
+}
+
+.welcome-step p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.welcome-step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.welcome-security {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  color: var(--text-muted);
+}
+
+.welcome-security > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.welcome-security strong {
+  color: var(--text);
+}
+
+.welcome-security p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.welcome-security .btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .welcome-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-hero {
+    padding: 24px;
+  }
+
+  .welcome-security {
+    flex-wrap: wrap;
+  }
+
+  .welcome-security .btn {
+    margin-left: 0;
+  }
+}

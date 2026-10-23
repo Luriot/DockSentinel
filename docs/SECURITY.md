@@ -75,9 +75,10 @@ Assumptions:
   not in the repository. Set `DATA_DIR` deliberately if using a shared or service account.
 - Native mode binds to `127.0.0.1` by default. Setting `HOST=0.0.0.0` exposes the same authenticated UI to
   the network and requires the same reverse-proxy/TLS care as the container deployment.
-- The installer downloads only the pinned official Trivy release, verifies the official SHA-256 checksum
-  before extraction or execution, installs atomically and verifies `trivy --version`. It never executes an
-  unverified download. A user-supplied `TRIVY_BIN` is trusted as-is.
+- The installer downloads only the pinned official Trivy release and (for the Windows installer) the
+  official Node.js runtime. Both SHA-256 checksums are verified before extraction or execution; Trivy is
+  installed atomically and checked with `trivy --version`. It never executes an unverified download. A
+  user-supplied `TRIVY_BIN` is trusted as-is.
 - Node.js 24.12+ remains a prerequisite; no self-contained executable is shipped. Node SEA is still active
   development and would add bundling/asset complexity without improving the supported Docker deployment.
 - Windows Docker Desktop is reached through its named pipe (`//./pipe/docker_engine`), which has the same

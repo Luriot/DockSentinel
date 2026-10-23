@@ -1,8 +1,9 @@
 # DockSentinel handoff
 
-Status: **native distribution, VS Code workflow and opt-in Trivy content scans implemented and verified
-locally; changes are committed but not pushed or published.** The published image on GHCR predates this
-iteration. This document states exactly what exists, what was executed, and what remains.
+Status: **user-friendly first-run onboarding, one-click local Docker detection, a Windows double-click
+installer, native distribution, VS Code workflow and opt-in content scans implemented and verified locally;
+changes are committed but not pushed or published.** The published image on GHCR predates this iteration.
+This document states exactly what exists, what was executed, and what remains.
 
 Built on 2026-10-22/23 with Node.js 26.4.0, Trivy 0.75.0, Docker Desktop 4.96.2 (Linux Engine 29.9.2),
 GitHub CLI 2.103.0 and Playwright/Chromium 156 on Windows. Docker and `gh` became available after the
@@ -97,7 +98,12 @@ initial implementation, so the image and live Docker integration were verified a
 - Backup script (`VACUUM INTO` + key copy) and administrator password-reset script.
 - Native launcher with per-user data folder, loopback default, actionable preflight errors, managed
   checksum-verified Trivy installer and Docker Desktop named-pipe support.
+- One-click local Docker detection and creation (`GET /api/environments/detect`, `POST /api/environments/local`)
+  plus a guided first-run Welcome screen and first-scan progress card.
+- Windows double-click installer that installs a private checksum-verified Node.js runtime, builds the UI,
+  installs verified Trivy and creates Desktop/Start Menu shortcuts.
 - `.vscode/tasks.json` default compound task starts backend and Vite in parallel as background tasks.
+- Navigation/UI labels simplified to Docker hosts, Scans, Alerts and a plain-language welcome/setup flow.
 
 ### Interface
 
@@ -210,7 +216,7 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passed (strict, `noUnusedLocals`, backend + web) |
-| `npm test` | **72/72 passing** in ~48 s |
+| `npm test` | **75/75 passing** in ~54 s |
 | Real Trivy end-to-end test | Passed; synthetic Debian 11 image produced **61 findings** (3 critical, 10 high, 26 medium, 20 low, 2 unknown); failure-preservation and cleanup assertions passed |
 | Docker discovery tests | Passed: 3 containers, 2 images, `0.0.0.0:8080` → potential exposure, declared label → confirmed, stopped → unknown, non-DockSentinel labels discarded, independent endpoint failure, only GET requests |
 | Notification tests | Passed: one grouped alert per scan, dedupe, ntfy Bearer header, retry/backoff, test success/failure, disabled mode |
@@ -218,7 +224,7 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Scheduler tests | Passed: discovery, new-image queueing without duplication, quick vs standard due logic, stale alert once/day |
 | Persistence/recovery tests | Passed: settings/session/inventory across restart, migrations idempotent, interrupted scans requeued/failed correctly |
 | Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage |
-| `vite build` | Passed: `index.html` 0.85 kB, CSS 24.56 kB (5.79 kB gzip), JS 363.34 kB (99.50 kB gzip) |
+| `vite build` | Passed: `index.html` 0.85 kB, CSS 26.18 kB (6.10 kB gzip), JS 370.27 kB (101.16 kB gzip) |
 | `npm run test:ui` | **12/12 passing** (Chromium headless), screenshots captured under `test-results/screens` |
 | Backup script | Verified: consistent DB snapshot + key copy + backup opens with expected data |
 | Password reset script | Verified: new password accepted, old rejected, sessions invalidated |
@@ -229,7 +235,10 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Live Docker discovery/scan | Passed against Docker Desktop 29.9.2; real nginx image, 96 findings; only GET API calls |
 | Container lifecycle | Healthcheck, non-root app user, graceful SIGTERM exit 0, restart persistence, interrupted-scan requeue verified |
 | Live ntfy delivery | Test + real finding alert received by a local receiver; dedupe/retry covered by tests |
-| Native installer (Windows) | Passed: UI build, official Trivy 0.75.0 download, SHA-256 verification, extraction, `trivy --version` |
+| Native installer (Windows) | Passed with system Node and with portable Node: UI build, official Node 24.12/Trivy 0.75.0 downloads, SHA-256 verification, launcher creation, Desktop/Start Menu shortcuts |
+| One-click onboarding | Passed in Chromium against real Docker Desktop: first-run setup, `Use Docker on this computer`, discovery, connected state, dashboard |
+| Container onboarding | Final image built; one-click local host creation via `DOCKER_HOST` + fake Docker endpoint, discovery, graceful stop; app running as UID 10001 |
+| Local Docker detection API | Passed: Windows named-pipe/Unix candidate selection and reachable/unreachable probing; one-click host creation/reuse integration test |
 | Native launcher (Windows) | Passed: 127.0.0.1 default, health, first-run setup, data in appdata-style `DATA_DIR`, restart persistence, port-conflict guidance |
 | Native + Docker Desktop | Passed via named pipe `//./pipe/docker_engine`: connection test, discovery, real scan with managed Trivy |
 | Content scan (real Trivy) | Passed: image config + image content findings, secret metadata only, no raw values in DB/API, failure preserves prior content findings |
@@ -269,7 +278,8 @@ Screenshots from the UI test run (not committed): `test-results/screens/01-overv
 - Content findings are manual/opt-in and never generate alerts. Secret values are never stored, but the
   temporary Trivy report briefly contains them in the `0700` scratch directory before deletion.
 - Native mode was executed on Windows only. macOS/Linux use the same Node code but their installer/launcher
-  path was not executed. Node.js 24.12+ is a prerequisite; no standalone executable is shipped.
+  path was not executed. The Windows double-click installer was tested with system and portable Node; macOS/Linux
+  still need Node.js 24.12+ and the command-line path.
 - No SBOM export, no VEX, no automatic remediation, no container modification.
 - Released under the MIT licence ([`LICENSE`](LICENSE)).
 
@@ -337,8 +347,8 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
    publish workflow; no push or GHCR build was performed here.
 2. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
    socket group IDs and update the Compose/template defaults if they differ from the documented guidance.
-3. **Test native mode on macOS/Linux** (installer uses `tar`; launcher uses `open`/`xdg-open`). Only Windows
-   was executed here.
+3. **Test native mode and shortcuts on macOS/Linux** (Windows installer/shortcut creation was tested; macOS/Linux
+   still use the command-line path).
 4. **Review the tag policy**: `latest`, `main` and `sha-<commit>` are published for the previous image. Create
    a `v*` tag when you want semver tags.
 5. Optionally add a CI test workflow and an arm64 runtime check; deliberately not added to avoid
@@ -360,6 +370,10 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
   checksum-verified; the Docker image's pinned Trivy version is unchanged.
 - Content scanning is manual and opt-in. It uses a separate table/page and no alerts, avoiding both
   vulnerability-data mixing and notification spam. Secret matching stores metadata only.
+- First-run UX avoids asking normal users about socket kinds: it probes local Docker Desktop named pipes and
+  Unix sockets and creates a host in one click. Manual connection remains available for remote/TLS hosts.
+- The Windows installer installs a private Node.js runtime rather than requiring system Node; both Node and
+  Trivy downloads are checksum-verified. It creates per-user shortcuts and opens the browser.
 - The production Dockerfile was built and smoke-tested on Docker Desktop (linux/amd64). The linux/arm64
   build was not executed; the chosen base images publish arm64 manifests.
 - Real Docker validation changed the result of the scanner integration: findings are now keyed by stable
