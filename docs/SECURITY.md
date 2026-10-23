@@ -133,6 +133,8 @@ consequences:
   (absolute URLs, `//`) are rejected with `400`; percent-encoded API paths are authenticated via the
   canonical matched route. Unknown API paths still return `401` without authentication rather than
   disclosing whether they exist.
+- Login re-reads the password hash after asynchronous scrypt verification before creating a session, so
+  a concurrent password change cannot leave a session created from the pre-change credential.
 - JSON-schema validation on bodies and query parameters; additional properties are stripped; request
   bodies are limited to 512 KiB.
 - Parameterised SQL everywhere; no dynamic SQL derived from user input (the only interpolation is a

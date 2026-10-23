@@ -124,6 +124,10 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       const valid = await verifyPassword(body.password, hash);
       if (!valid) unauthorized('Invalid username or password');
 
+      // Scrypt verification is asynchronous. Re-read the credential after it completes so a
+      // concurrent password change cannot be followed by a session created from the stale hash.
+      if (getPasswordHash(ctx.db) !== hash) unauthorized('Invalid username or password');
+
       loginLimiter.reset(ip);
       const session = createSession(ctx.db, user.id);
       setSessionCookie(req, reply, ctx.config, session.token, session.expiresAt);

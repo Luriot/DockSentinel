@@ -223,7 +223,7 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | KEV tests | Passed: sync, flagging, one alert, idempotent resync, failure retains last data |
 | Scheduler tests | Passed: discovery, new-image queueing without duplication, quick vs standard due logic, stale alert once/day |
 | Persistence/recovery tests | Passed: settings/session/inventory across restart, migrations idempotent, interrupted scans requeued/failed correctly |
-| Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage; absolute-form and percent-encoded API auth bypass regression tests |
+| Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage; absolute-form and percent-encoded API auth bypass regression tests; login rechecks the hash after async verification |
 | `vite build` | Passed: `index.html` 0.85 kB, CSS 26.18 kB (6.10 kB gzip), JS 370.27 kB (101.16 kB gzip) |
 | `npm run test:ui` | **12/12 passing** (Chromium headless), screenshots captured under `test-results/screens` |
 | Backup script | Verified: consistent DB snapshot + key copy + backup opens with expected data |
