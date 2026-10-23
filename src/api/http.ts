@@ -17,6 +17,17 @@ export function requireSession(req: FastifyRequest): SessionContext {
   return req.dsSession;
 }
 
+/**
+ * Returns the raw target only when it is origin-form (`/path?query`). Absolute-form and
+ * scheme-relative targets are rejected before routing/auth decisions; the router accepts them,
+ * but proxies and browsers should never send them to this API.
+ */
+export function originFormTarget(req: FastifyRequest): string | null {
+  const target = req.raw.url ?? '';
+  if (!target.startsWith('/') || target.startsWith('//')) return null;
+  return target;
+}
+
 export function assertCsrf(req: FastifyRequest, session: SessionContext): void {
   const header = req.headers['x-csrf-token'];
   if (typeof header !== 'string' || !constantTimeEquals(header, session.csrfToken)) {

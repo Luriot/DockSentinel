@@ -216,14 +216,14 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passed (strict, `noUnusedLocals`, backend + web) |
-| `npm test` | **75/75 passing** in ~54 s |
+| `npm test` | **77/77 passing** in ~54 s |
 | Real Trivy end-to-end test | Passed; synthetic Debian 11 image produced **61 findings** (3 critical, 10 high, 26 medium, 20 low, 2 unknown); failure-preservation and cleanup assertions passed |
 | Docker discovery tests | Passed: 3 containers, 2 images, `0.0.0.0:8080` → potential exposure, declared label → confirmed, stopped → unknown, non-DockSentinel labels discarded, independent endpoint failure, only GET requests |
 | Notification tests | Passed: one grouped alert per scan, dedupe, ntfy Bearer header, retry/backoff, test success/failure, disabled mode |
 | KEV tests | Passed: sync, flagging, one alert, idempotent resync, failure retains last data |
 | Scheduler tests | Passed: discovery, new-image queueing without duplication, quick vs standard due logic, stale alert once/day |
 | Persistence/recovery tests | Passed: settings/session/inventory across restart, migrations idempotent, interrupted scans requeued/failed correctly |
-| Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage |
+| Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage; absolute-form and percent-encoded API auth bypass regression tests |
 | `vite build` | Passed: `index.html` 0.85 kB, CSS 26.18 kB (6.10 kB gzip), JS 370.27 kB (101.16 kB gzip) |
 | `npm run test:ui` | **12/12 passing** (Chromium headless), screenshots captured under `test-results/screens` |
 | Backup script | Verified: consistent DB snapshot + key copy + backup opens with expected data |

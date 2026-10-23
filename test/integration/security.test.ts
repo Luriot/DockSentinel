@@ -2,6 +2,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestApp, authHeaders, type TestApp } from '../helpers/app.ts';
 import { startFakeNtfy, type FakeNtfy } from '../helpers/fake-ntfy.ts';
+import { request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 let harness: TestApp;
 let ntfy: FakeNtfy;
@@ -52,6 +54,55 @@ test('CSRF and Origin checks reject cross-site state changes', async () => {
     payload: { name: 'evil', kind: 'unix', address: '/var/run/docker.sock' },
   });
   assert.equal(crossOrigin.statusCode, 403);
+});
+
+test('absolute-form and percent-encoded API paths cannot bypass authentication', async () => {
+  const absolute = await harness.app.inject({
+    method: 'GET',
+    url: 'http://evil.example/api/environments',
+  });
+  assert.ok([400, 401].includes(absolute.statusCode), absolute.body);
+
+  const encoded = await harness.app.inject({
+    method: 'GET',
+    url: '/%61pi/environments',
+  });
+  assert.equal(encoded.statusCode, 401, encoded.body);
+
+  const encodedWrite = await harness.app.inject({
+    method: 'PATCH',
+    url: '/%61pi/settings',
+    payload: { alertOnNew: false },
+  });
+  assert.equal(encodedWrite.statusCode, 401, encodedWrite.body);
+});
+
+test('a raw absolute-form request target is rejected before routing', async () => {
+  const app = await createTestApp();
+  try {
+    await app.app.listen({ port: 0, host: '127.0.0.1' });
+    const address = app.app.server.address() as AddressInfo;
+    const status = await new Promise<number>((resolve, reject) => {
+      const request = httpRequest(
+        {
+          host: '127.0.0.1',
+          port: address.port,
+          method: 'GET',
+          path: 'http://evil.example/api/environments',
+          headers: { Host: 'docksentinel.local' },
+        },
+        (response) => {
+          response.resume();
+          response.on('end', () => resolve(response.statusCode ?? 0));
+        },
+      );
+      request.on('error', reject);
+      request.end();
+    });
+    assert.equal(status, 400);
+  } finally {
+    await app.close();
+  }
 });
 
 test('SQL-like and XSS-like input is treated as data', async () => {

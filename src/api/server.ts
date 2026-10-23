@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { sep as pathSeparator } from 'node:path';
 import type { AppContext } from './context.ts';
 import { ApiError } from './errors.ts';
-import { enforceUnsafeRequestGuards } from './http.ts';
+import { enforceUnsafeRequestGuards, originFormTarget } from './http.ts';
 import { SESSION_COOKIE, resolveSession } from '../auth.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEnvironmentRoutes } from './routes/environments.ts';
@@ -45,19 +45,39 @@ export async function buildServer(ctx: AppContext) {
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     reply.header('Content-Security-Policy', CSP);
-    const path = (req.raw.url ?? '').split('?')[0] ?? '';
-    if (path.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
+    const routeUrl = req.routeOptions.url;
+    if (typeof routeUrl === 'string' && routeUrl.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     if (req.protocol === 'https') reply.header('Strict-Transport-Security', 'max-age=15552000');
     return payload;
   });
 
   app.addHook('onRequest', async (req, reply) => {
-    const path = (req.raw.url ?? '').split('?')[0] ?? '';
-    if (!path.startsWith('/api/')) return;
-    if (path === '/api/health' || path === '/api') return;
+    const target = originFormTarget(req);
+    if (!target) {
+      await reply.code(400).send({ error: { code: 'bad_request', message: 'Invalid request target' } });
+      return;
+    }
+    // Use the router's matched route for known API routes. For unknown API paths there is no route
+    // context, so fall back to the origin-form target (decoded) to keep unauthenticated API probing
+    // at 401 instead of disclosing which routes exist.
+    const routeUrl = req.routeOptions.url;
+    const rawPath = target.split('?')[0] ?? '';
+    let apiPath: string | null =
+      typeof routeUrl === 'string' && routeUrl.startsWith('/api/') ? routeUrl : null;
+    if (!apiPath && (rawPath === '/api' || rawPath.startsWith('/api/'))) apiPath = rawPath;
+    if (!apiPath) {
+      try {
+        const decoded = decodeURIComponent(rawPath);
+        if (decoded === '/api' || decoded.startsWith('/api/')) apiPath = decoded;
+      } catch {
+        // Malformed escapes are not an API route; the router will reject/404 them.
+      }
+    }
+    if (!apiPath) return;
+    if (apiPath === '/api/health' || apiPath === '/api') return;
 
     const token = req.cookies[SESSION_COOKIE];
-    if (path.startsWith('/api/auth/')) {
+    if (apiPath.startsWith('/api/auth/')) {
       // Auth routes manage their own requirements, but a valid session is still attached so
       // authenticated operations such as logout and password changes can verify CSRF.
       const session = token ? resolveSession(ctx.db, token) : null;
@@ -134,7 +154,11 @@ export async function buildServer(ctx: AppContext) {
   }
 
   app.setNotFoundHandler((req, reply) => {
-    const path = (req.raw.url ?? '').split('?')[0] ?? '';
+    const target = originFormTarget(req);
+    if (!target) {
+      return reply.code(400).send({ error: { code: 'bad_request', message: 'Invalid request target' } });
+    }
+    const path = target.split('?')[0] ?? '';
     if (path === '/api' || path.startsWith('/api/')) {
       return reply.code(404).send({ error: { code: 'not_found', message: 'Endpoint not found' } });
     }

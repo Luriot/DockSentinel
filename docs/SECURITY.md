@@ -129,6 +129,10 @@ consequences:
 
 ## HTTP and application security
 
+- The API auth gate uses Fastify's matched route, not the raw request target. Non-origin-form targets
+  (absolute URLs, `//`) are rejected with `400`; percent-encoded API paths are authenticated via the
+  canonical matched route. Unknown API paths still return `401` without authentication rather than
+  disclosing whether they exist.
 - JSON-schema validation on bodies and query parameters; additional properties are stripped; request
   bodies are limited to 512 KiB.
 - Parameterised SQL everywhere; no dynamic SQL derived from user input (the only interpolation is a
