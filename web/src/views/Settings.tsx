@@ -101,6 +101,8 @@ export function Settings() {
                 defaultStandardIntervalHours: form.defaultStandardIntervalHours,
                 scanOnDiscovery: form.scanOnDiscovery,
                 scanFailureRetries: form.scanFailureRetries,
+                misconfigScanEnabled: form.misconfigScanEnabled,
+                secretScanEnabled: form.secretScanEnabled,
               })
             }
           >
@@ -196,6 +198,32 @@ export function Settings() {
                   Scan newly discovered images automatically
                   <span className="hint" style={{ display: 'block' }}>
                     A standard scan is queued for images that have never completed a successful scan.
+                  </span>
+                </span>
+              </label>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={form.misconfigScanEnabled}
+                  onChange={(event) => setForm({ ...form, misconfigScanEnabled: event.target.checked })}
+                />
+                <span>
+                  Enable misconfiguration scans (opt-in)
+                  <span className="hint" style={{ display: 'block' }}>
+                    Scans Dockerfile-converted image config and IaC files inside the image. It is not a host or daemon audit.
+                  </span>
+                </span>
+              </label>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={form.secretScanEnabled}
+                  onChange={(event) => setForm({ ...form, secretScanEnabled: event.target.checked })}
+                />
+                <span>
+                  Enable secret scans (opt-in)
+                  <span className="hint" style={{ display: 'block' }}>
+                    Stores only rule, location, category and severity; never the matched value. False positives are possible.
                   </span>
                 </span>
               </label>

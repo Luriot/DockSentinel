@@ -1,0 +1,63 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DockSentinel: backend",
+      "detail": "API on :8080 (npm run dev)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "docksentinel-backend",
+        "pattern": [{ "regexp": "^$" }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "DockSentinel started|Server listening at",
+          "endsPattern": "shutting down"
+        }
+      },
+      "presentation": {
+        "group": "docksentinel-dev",
+        "panel": "dedicated",
+        "reveal": "always",
+        "clear": true,
+        "name": "DockSentinel API"
+      },
+      "icon": { "id": "server-process", "color": "terminal.ansiBlue" }
+    },
+    {
+      "label": "DockSentinel: frontend",
+      "detail": "Vite dev server on :5173 with /api proxy (npm run dev:web)",
+      "type": "shell",
+      "command": "npm run dev:web",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "docksentinel-frontend",
+        "pattern": [{ "regexp": "^$" }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE v|ready in|Local:",
+          "endsPattern": "server closed"
+        }
+      },
+      "presentation": {
+        "group": "docksentinel-dev",
+        "panel": "dedicated",
+        "reveal": "always",
+        "clear": true,
+        "name": "DockSentinel Web"
+      },
+      "icon": { "id": "browser", "color": "terminal.ansiCyan" }
+    },
+    {
+      "label": "DockSentinel: dev",
+      "detail": "Run the API and Vite frontend together",
+      "dependsOn": ["DockSentinel: backend", "DockSentinel: frontend"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}

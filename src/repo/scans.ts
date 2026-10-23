@@ -3,6 +3,7 @@ import { nowIso } from '../util/time.ts';
 import type { ScanProfile } from '../scanner/trivy.ts';
 
 export type ScanStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
+export type ScanKind = 'vulnerability' | 'content';
 export type ScanTrigger = 'manual' | 'schedule' | 'new_image' | 'retry';
 
 export interface ScanRecord {
@@ -10,6 +11,7 @@ export interface ScanRecord {
   environmentId: number | null;
   imageId: string;
   imageRef: string;
+  kind?: ScanKind;
   profile: ScanProfile;
   trigger: ScanTrigger;
   status: ScanStatus;
@@ -42,6 +44,7 @@ interface ScanRow {
   environment_id: number | null;
   image_id: string;
   image_ref: string;
+  kind: ScanKind;
   profile: ScanProfile;
   trigger: ScanTrigger;
   status: ScanStatus;
@@ -75,6 +78,7 @@ function mapScan(row: ScanRow): ScanRecord {
     environmentId: row.environment_id,
     imageId: row.image_id,
     imageRef: row.image_ref,
+    kind: row.kind,
     profile: row.profile,
     trigger: row.trigger,
     status: row.status,
@@ -125,6 +129,7 @@ export interface QueueScanInput {
   environmentId: number | null;
   imageId: string;
   imageRef: string;
+  kind?: ScanKind;
   profile: ScanProfile;
   trigger: ScanTrigger;
   priority?: number;
@@ -134,12 +139,13 @@ export interface QueueScanInput {
 export function queueScan(db: Db, input: QueueScanInput, ifIdle = true): number | null {
   if (ifIdle && hasActiveScan(db, input.imageId)) return null;
   const result = db.run(
-    `INSERT INTO scans (environment_id, image_id, image_ref, profile, trigger, status, priority, queued_at, run_after, attempts)
-     VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, 1)`,
+    `INSERT INTO scans (environment_id, image_id, image_ref, kind, profile, trigger, status, priority, queued_at, run_after, attempts)
+     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, 1)`,
     [
       input.environmentId,
       input.imageId,
       input.imageRef.slice(0, 400),
+      input.kind ?? 'vulnerability',
       input.profile,
       input.trigger,
       input.priority ?? 0,
@@ -278,6 +284,7 @@ export function markScanCancelled(db: Db, id: number, message: string): void {
 
 export interface ScanFilters {
   status?: ScanStatus;
+  kind?: ScanKind;
   imageId?: string;
   environmentId?: number;
   page: number;
@@ -290,6 +297,10 @@ export function listScans(db: Db, filters: ScanFilters): { items: ScanRecord[]; 
   if (filters.status) {
     conditions.push('s.status = ?');
     params.push(filters.status);
+  }
+  if (filters.kind) {
+    conditions.push('s.kind = ?');
+    params.push(filters.kind);
   }
   if (filters.imageId) {
     conditions.push('s.image_id = ?');
@@ -308,21 +319,25 @@ export function listScans(db: Db, filters: ScanFilters): { items: ScanRecord[]; 
   return { items: rows.map(mapScan), total };
 }
 
-export function recentScans(db: Db, limit = 10): ScanRecord[] {
+export function recentScans(db: Db, limit = 10, kind: ScanKind = 'vulnerability'): ScanRecord[] {
   return db
-    .all<ScanRow>('SELECT * FROM scans ORDER BY queued_at DESC, id DESC LIMIT ?', [limit])
+    .all<ScanRow>('SELECT * FROM scans WHERE kind = ? ORDER BY queued_at DESC, id DESC LIMIT ?', [kind, limit])
     .map(mapScan);
 }
 
-export function scanStatusCounts(db: Db, since: string): Record<ScanStatus, number> {
+export function scanStatusCounts(
+  db: Db,
+  since: string,
+  kind: ScanKind = 'vulnerability',
+): Record<ScanStatus, number> {
   const row = db.get<Record<string, number>>(
     `SELECT
        SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS queued,
        SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running,
        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success,
        SUM(CASE WHEN status IN ('failed','cancelled') THEN 1 ELSE 0 END) AS failed
-     FROM scans WHERE queued_at >= ?`,
-    [since],
+     FROM scans WHERE kind = ? AND queued_at >= ?`,
+    [kind, since],
   );
   return {
     queued: Number(row?.queued ?? 0),
@@ -338,7 +353,7 @@ export function pruneScans(db: Db, cutoff: string): number {
   const result = db.run(
     `DELETE FROM scans
      WHERE finished_at IS NOT NULL AND finished_at < ?
-       AND id NOT IN (SELECT MAX(id) FROM scans GROUP BY image_id)`,
+       AND id NOT IN (SELECT MAX(id) FROM scans GROUP BY image_id, kind)`,
     [cutoff],
   );
   return result.changes;

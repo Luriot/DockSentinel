@@ -1,10 +1,10 @@
 # DockSentinel handoff
 
-Status: **MVP implemented, verified locally, committed and published to GHCR.** The public repository is
-`https://github.com/Luriot/DockSentinel`; the public image is `ghcr.io/luriot/docksentinel`. This document
-states exactly what exists, what was executed, and what remains.
+Status: **native distribution, VS Code workflow and opt-in Trivy content scans implemented and verified
+locally; changes are committed but not pushed or published.** The published image on GHCR predates this
+iteration. This document states exactly what exists, what was executed, and what remains.
 
-Built on 2026-10-22 with Node.js 26.4.0, Trivy 0.75.0, Docker Desktop 4.96.2 (Linux Engine 29.9.2),
+Built on 2026-10-22/23 with Node.js 26.4.0, Trivy 0.75.0, Docker Desktop 4.96.2 (Linux Engine 29.9.2),
 GitHub CLI 2.103.0 and Playwright/Chromium 156 on Windows. Docker and `gh` became available after the
 initial implementation, so the image and live Docker integration were verified afterwards.
 
@@ -36,8 +36,8 @@ initial implementation, so the image and live Docker integration were verified a
 - Safe child-process execution: argument arrays, no shell, minimal environment, 15-minute hard timeout,
   96 MiB report cap, 8 GiB archive cap, 1 MiB stdout/64 KiB stderr caps, process-tree kill, abort support.
 - Database-update failure retried once against the cached database with a warning; records DB age.
-- Strict parsing: malformed/truncated output, empty reports, wrong image IDs, timeouts, non-zero exits and
-  oversized reports all fail. They never look clean. Previous findings are preserved on failure.
+- Strict parsing: malformed/truncated output, empty reports, timeouts, non-zero exits and oversized
+  reports all fail. They never look clean. Previous findings are preserved on failure.
 - Retry with bounded exponential backoff for transient failures; one scan per environment at a time;
   configurable global concurrency; no overlapping scans for the same image.
 - Recovery on restart: interrupted scans are requeued while budget remains, otherwise failed; scratch
@@ -45,6 +45,20 @@ initial implementation, so the image and live Docker integration were verified a
 - Manual scans from images/containers, scheduled scans, first-scan-on-discovery, and per-environment
   quick/standard intervals. Rescans happen even when the digest is unchanged, because vulnerability
   intelligence changes.
+
+### Opt-in content scanning
+
+- Separate manual scan type (`kind = content`) for Trivy's image config/content misconfiguration and secret
+  scanners. Enabled per scanner in Settings; disabled by default.
+- Runs `trivy image --input … --scanners misconfig,secret --image-config-scanners misconfig,secret` on the
+  same exported archive. No vulnerability DB update, no vulnerability counts, no image scan-status changes,
+  no alerts.
+- Findings use a separate `content_findings` table and lifecycle/page. Only successful parsed content scans
+  can resolve prior content findings.
+- Secret handling: only rule ID, category, title, path, line range and severity are stored. Raw `Match`,
+  code lines and layer contents are discarded; content-scan errors are generic and discard stderr.
+- Misconfiguration coverage is image config (Dockerfile conversion) and IaC files inside the image only —
+  explicitly not a host/daemon/running-container audit.
 
 ### Findings, prioritisation and exposure
 
@@ -81,11 +95,14 @@ initial implementation, so the image and live Docker integration were verified a
   body limit, parameterised SQL, no arbitrary command execution.
 - Health endpoint with DB check, graceful shutdown, bounded retries, endpoint isolation.
 - Backup script (`VACUUM INTO` + key copy) and administrator password-reset script.
+- Native launcher with per-user data folder, loopback default, actionable preflight errors, managed
+  checksum-verified Trivy installer and Docker Desktop named-pipe support.
+- `.vscode/tasks.json` default compound task starts backend and Vite in parallel as background tasks.
 
 ### Interface
 
-- Dark, dense technical UI with eight views: Overview, Environments, Containers, Images, Vulnerabilities,
-  Scan activity, Notifications, Settings; plus login/setup and detail drawers.
+- Dark, dense technical UI with nine views: Overview, Environments, Containers, Images, Vulnerabilities,
+  Config & secrets, Scan activity, Notifications, Settings; plus login/setup and detail drawers.
 - Severity is conveyed with text + shape, not colour alone; priority tiers show their factors; exposure is
   labelled carefully; failures, stale results and clean results are visually distinct.
 - Search/filter/sort, pagination, loading/empty/error states, responsive layout (verified at 390 px),
@@ -97,12 +114,14 @@ initial implementation, so the image and live Docker integration were verified a
 | Integration | Status |
 | --- | --- |
 | Trivy 0.75.0 image scan (`vuln` scanner) | Implemented and validated with the real binary |
-| Docker Engine over Unix socket | Implemented; validated against a spec-shaped fake daemon |
+| Docker Engine over Unix socket | Implemented; validated against a spec-shaped fake daemon and a real Docker Desktop Unix socket in the earlier container run |
+| Docker Desktop named pipe (`//./pipe/docker_engine`) | Implemented and validated natively against Docker Desktop |
 | Docker Engine over TCP (trusted network) | Implemented; validated against a fake daemon |
 | Docker Engine over TCP with mutual TLS / optional skip-verify | Implemented; code path unit-typed but **not** exercised against a real TLS daemon |
 | Remote hosts, Unraid Docker Engine, multiple endpoints | Implemented at the Docker API level; real-host validation pending |
 | Additional scanners | Interface (`ScannerAdapter`) and normalisation boundary in place; no second scanner added |
-| Misconfiguration / secret / runtime scanning | **Not implemented** (out of scope) |
+| Opt-in Trivy image config/content scanning (misconfig + secret) | Implemented and validated with real Trivy; metadata-only secret storage; separate lifecycle/page |
+| Runtime/host/daemon scanning | **Not implemented** (out of scope) |
 
 Trivy coverage (OS packages, language packages, CVSS, fixes, references) and its limits are documented in
 [`docs/SCANNERS.md`](docs/SCANNERS.md). DockSentinel does not implement any scanning logic itself.
@@ -115,6 +134,10 @@ Trivy coverage (OS packages, language packages, CVSS, fixes, references) and its
 - **SQLite** (`node:sqlite`) — single-instance workload, zero external infrastructure, WAL with one writer.
 - **React 19 + Vite + hand-written CSS** — 355 kB JS / 98 kB gzip, no component library.
 - **No ORM, no cron library, no Docker SDK, no docker CLI** — explicit small modules instead.
+- **Native launcher + verified Trivy installer** — Node 24 remains the prerequisite; Node SEA is still active
+  development, so no self-contained executable is shipped.
+- **Content scans use a separate `content_findings` table and page** — they never mix into vulnerability
+  counters, alerts or image scan status. Secret values are dropped during parsing.
 - **Trivy as a child process on a local image archive**, not as a privileged daemon client. Trade-off:
   temporary disk usage is bounded by `MAX_IMAGE_EXPORT_BYTES`; scanner isolation is stronger and TLS
   handling is uniform.
@@ -127,13 +150,19 @@ Trivy coverage (OS packages, language packages, CVSS, fixes, references) and its
 npm install
 npm run dev                 # API plus the last built UI on :8080 (use dev:web for SPA hot reload)
 npm run dev:web             # Vite on :5173, proxies /api to :8080
+npm run native:setup        # build UI + install checksum-verified Trivy for native mode
+npm run native              # native launcher on 127.0.0.1:8080
 npm run typecheck
-npm test                    # 63 unit + integration tests
+npm test                    # 72 unit + integration tests
 npx playwright install chromium
-npm run test:ui             # 11 browser tests (builds the SPA automatically if missing)
+npm run test:ui             # 12 browser tests
 npm run build               # typecheck + production SPA
 npm start                   # serves API + web/dist on :8080
 ```
+
+VS Code: **Ctrl+Shift+B** runs `.vscode/tasks.json`'s default compound task (backend + Vite, parallel,
+background). The underlying commands were started together and the Vite `/api` proxy was verified; the VS
+Code CLI was not available to press the keybinding in this environment.
 
 Real Trivy integration tests use the machine's normal Trivy cache when available and are skipped otherwise.
 The tests do not need a Docker daemon: discovery/export use an in-process fake Docker HTTP server and the
@@ -181,7 +210,7 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passed (strict, `noUnusedLocals`, backend + web) |
-| `npm test` | **63/63 passing** in ~47 s |
+| `npm test` | **72/72 passing** in ~48 s |
 | Real Trivy end-to-end test | Passed; synthetic Debian 11 image produced **61 findings** (3 critical, 10 high, 26 medium, 20 low, 2 unknown); failure-preservation and cleanup assertions passed |
 | Docker discovery tests | Passed: 3 containers, 2 images, `0.0.0.0:8080` → potential exposure, declared label → confirmed, stopped → unknown, non-DockSentinel labels discarded, independent endpoint failure, only GET requests |
 | Notification tests | Passed: one grouped alert per scan, dedupe, ntfy Bearer header, retry/backoff, test success/failure, disabled mode |
@@ -189,17 +218,23 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Scheduler tests | Passed: discovery, new-image queueing without duplication, quick vs standard due logic, stale alert once/day |
 | Persistence/recovery tests | Passed: settings/session/inventory across restart, migrations idempotent, interrupted scans requeued/failed correctly |
 | Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage |
-| `vite build` | Passed: `index.html` 0.85 kB, CSS 24.59 kB (5.80 kB gzip), JS 354.58 kB (98.05 kB gzip) |
-| `npm run test:ui` | **11/11 passing** (Chromium headless), screenshots captured under `test-results/screens` |
+| `vite build` | Passed: `index.html` 0.85 kB, CSS 24.56 kB (5.79 kB gzip), JS 363.34 kB (99.50 kB gzip) |
+| `npm run test:ui` | **12/12 passing** (Chromium headless), screenshots captured under `test-results/screens` |
 | Backup script | Verified: consistent DB snapshot + key copy + backup opens with expected data |
 | Password reset script | Verified: new password accepted, old rejected, sessions invalidated |
 | `npm audit` (prod and all) | 0 vulnerabilities at verification time |
-| Workflow YAML | Parsed and structurally checked; **not executed** |
+| Workflow YAML | Parsed and executed successfully on the previous publication (run 39872718832); not re-run this iteration |
 | Production image build | Passed on Docker Desktop (linux/amd64); `buildx --check` clean |
+| Iteration image smoke | Built successfully; container healthy as UID 10001; content scan (4 findings) and vulnerability scan (85 findings) via a fake Docker endpoint; restart persistence and graceful stop verified. Real Docker discovery was validated natively via Docker Desktop's named pipe because Docker Desktop no longer exposes the Unix socket on this host |
 | Live Docker discovery/scan | Passed against Docker Desktop 29.9.2; real nginx image, 96 findings; only GET API calls |
 | Container lifecycle | Healthcheck, non-root app user, graceful SIGTERM exit 0, restart persistence, interrupted-scan requeue verified |
 | Live ntfy delivery | Test + real finding alert received by a local receiver; dedupe/retry covered by tests |
-| Arm64 build | **Not executed**; base images support arm64, workflow not run |
+| Native installer (Windows) | Passed: UI build, official Trivy 0.75.0 download, SHA-256 verification, extraction, `trivy --version` |
+| Native launcher (Windows) | Passed: 127.0.0.1 default, health, first-run setup, data in appdata-style `DATA_DIR`, restart persistence, port-conflict guidance |
+| Native + Docker Desktop | Passed via named pipe `//./pipe/docker_engine`: connection test, discovery, real scan with managed Trivy |
+| Content scan (real Trivy) | Passed: image config + image content findings, secret metadata only, no raw values in DB/API, failure preserves prior content findings |
+| VS Code task | JSON validated; both underlying commands ran together and the Vite proxy worked; keybinding not exercised without VS Code CLI |
+| Arm64 build | **Not executed**; base images support arm64, workflow not run this iteration |
 
 Screenshots from the UI test run (not committed): `test-results/screens/01-overview.png` … `09-setup-empty.png`.
 
@@ -219,14 +254,22 @@ Screenshots from the UI test run (not committed): `test-results/screens/01-overv
 - Docker socket access is effectively host-root. The Compose file mounts it read-only, which does not make
   the API read-only. Prefer a socket group/socket proxy or TLS endpoints. Docker Desktop requires GID 0 for
   the socket; Linux/Unraid hosts use their socket's group.
-- Only Docker Desktop's local Unix socket was exercised. Mutual-TLS remote endpoints and an actual Unraid
-  Docker Engine were **not** validated against real daemons.
+- Docker Desktop's named pipe was exercised natively, and its Unix socket was exercised in the earlier
+  container run. Mutual-TLS remote endpoints and an actual Unraid Docker Engine were **not** validated
+  against real daemons.
 - Image IDs are whatever `/images/json` reports. On containerd-backed engines this is the manifest digest,
   while Trivy reports the config digest; DockSentinel attributes by the requested image ID and documents
   the difference. The same image on differently-backed hosts may therefore be scanned twice.
 - The scanner binary is trusted; replacing it on a custom image would defeat result integrity.
 - The setup token is printed to logs once; protect log access.
 - Backups contain encrypted secrets plus the key; they must be protected.
+- Content scanning is not a host, daemon, Kubernetes or running-container audit. Image-content
+  misconfiguration checks are useful only when IaC files are present. Secret scans can produce false
+  positives and a clean result is not proof that an image has no credentials.
+- Content findings are manual/opt-in and never generate alerts. Secret values are never stored, but the
+  temporary Trivy report briefly contains them in the `0700` scratch directory before deletion.
+- Native mode was executed on Windows only. macOS/Linux use the same Node code but their installer/launcher
+  path was not executed. Node.js 24.12+ is a prerequisite; no standalone executable is shipped.
 - No SBOM export, no VEX, no automatic remediation, no container modification.
 - Released under the MIT licence ([`LICENSE`](LICENSE)).
 
@@ -236,7 +279,8 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 
 1. Read the setup token from the logs (or set `SETUP_TOKEN` before first start).
 2. Environments → Add environment:
-   - Local: kind `unix`, address `/var/run/docker.sock`.
+   - Linux/macOS local: kind `unix`, address `/var/run/docker.sock`.
+   - Windows Docker Desktop: kind `unix`, address `//./pipe/docker_engine`.
    - Remote TLS: kind `tls`, address `host:2376`, paste CA/client cert/key.
    - Plain TCP only on a trusted private network.
 3. Test connection, then Discover. The scheduler will queue a standard scan for new images.
@@ -249,6 +293,11 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 
 - Production image: multi-stage `Dockerfile` (Node 24 slim runtime + pinned Trivy 0.75.0, CA certs, `tini`,
   `gosu`; app process drops to `PUID`/`PGID`). Compose example and Unraid template included.
+- Native: `npm ci && npm run native:setup && npm run native`; data in the per-user application folder,
+  managed Trivy installed and checksum-verified by `native:setup`. Node 24.12+ is required.
+- Windows Docker Desktop named pipe is entered as kind `unix`, address `//./pipe/docker_engine`.
+- Content scans: enable one or both scanners in Settings, then use **Content scan** in an image drawer.
+  They are manual, separate from vulnerability scans, and never generate alerts.
 - Upgrades: back up, pull/rebuild, restart. Migrations run automatically; downgrades are refused.
 - Backup: `docker exec docksentinel node scripts/backup.ts` (`VACUUM INTO` + key copy).
 - Restore: stop, replace `docksentinel.db` and `secret.key`, start.
@@ -260,6 +309,8 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 ## GHCR workflow status
 
 - Repository: **public** — https://github.com/Luriot/DockSentinel (branch `main`).
+- This iteration's commits are **local only**. The published image below still represents commit `4415f96`
+  (before native/content changes); pushing this iteration would trigger a new publish and requires approval.
 - Workflow: [`.github/workflows/publish.yml`](.github/workflows/publish.yml), triggered by pushes to
   `main`/`v*` tags that change image inputs, or by manual dispatch. Never by pull requests.
 - Final successful run: https://github.com/Luriot/DockSentinel/actions/runs/39872718832
@@ -282,14 +333,16 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 
 ## Exact actions still required from the user
 
-1. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
+1. **Approve push/publication** of this iteration. Pushing image-affecting changes to `main` triggers the
+   publish workflow; no push or GHCR build was performed here.
+2. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
    socket group IDs and update the Compose/template defaults if they differ from the documented guidance.
-2. **Review the tag policy**: `latest`, `main` and `sha-<commit>` are published now. Create a `v*` tag when
-   you want semver tags; decide whether `latest` should keep moving on every image-impacting `main` push.
-3. Optionally add a CI test workflow and an arm64 runtime check; deliberately not added to avoid
+3. **Test native mode on macOS/Linux** (installer uses `tar`; launcher uses `open`/`xdg-open`). Only Windows
+   was executed here.
+4. **Review the tag policy**: `latest`, `main` and `sha-<commit>` are published for the previous image. Create
+   a `v*` tag when you want semver tags.
+5. Optionally add a CI test workflow and an arm64 runtime check; deliberately not added to avoid
    unnecessary Actions runs.
-4. Optionally run the published arm64 image on real arm64 hardware (the manifest exists; only the amd64
-   image was executed during development).
 
 ## Notable decisions and deviations
 
@@ -301,7 +354,12 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
   KEV membership. It is enrichment only and fails soft.
 - The browser UI was tested both against seeded SQLite data and against the live container instance with
   real Docker findings. Backend integration tests use real Trivy with a synthetic image archive and a fake
-  Docker API.
+  Docker API. A new UI test covers the content findings page.
+- Native distribution deliberately keeps Node as a prerequisite instead of adopting Node SEA (Stability 1.1
+  active development) or bundling a Node runtime. Trivy is downloaded from the official release and
+  checksum-verified; the Docker image's pinned Trivy version is unchanged.
+- Content scanning is manual and opt-in. It uses a separate table/page and no alerts, avoiding both
+  vulnerability-data mixing and notification spam. Secret matching stores metadata only.
 - The production Dockerfile was built and smoke-tested on Docker Desktop (linux/amd64). The linux/arm64
   build was not executed; the chosen base images publish arm64 manifests.
 - Real Docker validation changed the result of the scanner integration: findings are now keyed by stable

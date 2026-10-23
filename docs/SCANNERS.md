@@ -64,6 +64,32 @@ used for prioritisation.
 
 A hard ceiling (`SCAN_TIMEOUT_MS`, default 15 minutes) applies to every profile.
 
+## Opt-in content scans
+
+When enabled in Settings, an image drawer can queue a separate **content scan**. It never changes
+vulnerability counts, image scan status or alerts. It uses the same exported archive and scratch directory:
+
+```bash
+trivy image --input image.tar --format json --output report-content.json --quiet \
+  --scanners misconfig,secret \
+  --image-config-scanners misconfig,secret \
+  --cache-dir <TRIVY_CACHE_DIR> --timeout <10 minutes + 30s>
+```
+
+- **Misconfigurations** come from Dockerfile-converted image configuration and IaC files inside the image.
+  Trivy itself notes that image content misconfiguration is rarely useful unless the image contains IaC
+  files. This is not a host, daemon, Kubernetes-cluster or running-container audit.
+- **Secrets** come from files inside image layers and the image config (for example environment variables).
+  Only rule ID, category, title, path, line range and severity are stored. The raw `Match`, code lines and
+  layer contents are discarded during parsing and are never written to SQLite, logs, API responses,
+  notifications or tests. A secret scan can produce false positives and cannot prove an image is clean.
+- Content scans are manual and opt-in (`misconfigScanEnabled`, `secretScanEnabled`, both default false).
+  They use a separate `content_findings` lifecycle and UI page; failed/incomplete scans never resolve
+  previous content findings. No content alert is sent.
+- The first misconfiguration scan may download Trivy's checks bundle; offline deployments need a prepared
+  Trivy cache. Secret scanning uses Trivy's built-in rules and allow rules.
+- Content scans do not run the vulnerability DB update, so no vulnerability DB timestamp is recorded.
+
 ## What image scanning can detect here
 
 - **Operating-system package vulnerabilities** for images Trivy recognises (Debian/Ubuntu, Alpine, Red Hat
@@ -79,8 +105,10 @@ A hard ceiling (`SCAN_TIMEOUT_MS`, default 15 minutes) applies to every profile.
 - **Runtime compromise, backdoors in memory, active attacks.** This is not an intrusion detection
   system or host security agent. A scanned image can be exploited at runtime through zero-days, logic
   flaws, weak credentials or live configuration.
-- **Misconfigurations, secrets, licenses.** This release invokes only the `vuln` scanner; Trivy's
-  misconfiguration and secret scanners are not enabled. Do not infer CIS/container-hardening results.
+- **Host/daemon/Kubernetes misconfigurations and runtime secrets.** The opt-in content scan only
+  inspects the image config and files in the image. It does not inspect the running container, Docker
+  daemon, host, cluster or mounted volumes. Secret findings can be false positives.
+- **License compliance.** Trivy's license scanner is not enabled.
 - **Host kernel, host packages, Docker daemon configuration.** DockSentinel scans images, not hosts.
 - **Every dependency.** Statically linked code, vendored libraries without metadata, distroless/scratch
   images with no package metadata, proprietary binaries and build artifacts may be invisible to the
@@ -149,7 +177,14 @@ The boundary is intentionally small:
 ```ts
 interface ScannerAdapter {
   readonly name: string;
-  run(input: { archivePath; workDir; profile; signal }): Promise<ScannerRunResult>;
+  run(input: {
+    archivePath;
+    workDir;
+    profile;
+    mode?: 'vulnerability' | 'content';
+    contentScanners?: { misconfig: boolean; secret: boolean };
+    signal;
+  }): Promise<ScannerRunResult>;
 }
 ```
 

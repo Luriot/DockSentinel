@@ -65,7 +65,7 @@ export function Scans() {
 
   async function rescan(scan: ScanRecord): Promise<void> {
     try {
-      await api.post('/scans', { imageId: scan.imageId, profile: scan.profile });
+      await api.post('/scans', { imageId: scan.imageId, profile: scan.profile, kind: scan.kind });
       toast(`Scan queued for ${scan.imageRef}`, 'success');
       refresh();
     } catch (scanError) {
@@ -180,7 +180,7 @@ export function Scans() {
                       <td>
                         {scan.environmentId ? (environmentNames.get(scan.environmentId) ?? `#${scan.environmentId}`) : '—'}
                       </td>
-                      <td>{titleCase(scan.profile)}</td>
+                      <td>{scan.kind === 'content' ? 'Config & secrets' : titleCase(scan.profile)}</td>
                       <td>{titleCase(scan.trigger)}</td>
                       <td>
                         <span className="small">{relativeTime(scan.startedAt ?? scan.queuedAt)}</span>
@@ -257,7 +257,7 @@ function ScanDrawer({ scanId, onClose }: { scanId: number; onClose: () => void }
           <section className="drawer-section">
             <div className="hstack" style={{ marginBottom: 10 }}>
               <ScanStatusBadge status={data.scan.status} />
-              <span className="badge neutral">{titleCase(data.scan.profile)}</span>
+              <span className="badge neutral">{data.scan.kind === 'content' ? 'Config & secrets' : titleCase(data.scan.profile)}</span>
               <span className="badge neutral">{titleCase(data.scan.trigger)}</span>
             </div>
             <dl className="detail-list">

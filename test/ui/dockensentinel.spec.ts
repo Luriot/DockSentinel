@@ -164,6 +164,21 @@ test('notifications expose policy, delivery history and configuration errors', a
   await page.screenshot({ path: join(SCREENS, '06-notifications.png'), fullPage: true });
 });
 
+test('configuration and secret findings show metadata without secret values', async ({ page }) => {
+  await login(page);
+  await page.goto(`${server.url}/content`);
+  await expect(page.getByRole('heading', { name: 'Configuration & secrets', level: 1 })).toBeVisible();
+  await expect(page.getByText('1 misconfigurations')).toBeVisible();
+  await expect(page.getByText('1 secrets')).toBeVisible();
+  await expect(page.locator('table tbody tr')).toHaveCount(2);
+  await page.locator('table tbody tr').filter({ hasText: 'Secret' }).first().click();
+  const drawer = page.getByRole('dialog');
+  await expect(drawer.getByText('AWS Access Key ID')).toBeVisible();
+  await expect(drawer.getByText(/matched secret value is not stored/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: join(SCREENS, '06b-content.png'), fullPage: true });
+});
+
 test('settings changes are validated and persisted', async ({ page }) => {
   await login(page);
   await page.goto(`${server.url}/settings`);
@@ -176,6 +191,15 @@ test('settings changes are validated and persisted', async ({ page }) => {
 
   await page.reload();
   await expect(page.locator('#freshnessHours')).toHaveValue('36');
+
+  const misconfigToggle = page.getByLabel(/Enable misconfiguration scans/);
+  await expect(misconfigToggle).toBeChecked();
+  await misconfigToggle.uncheck();
+  const scanningCard = misconfigToggle.locator('xpath=ancestor::section');
+  await scanningCard.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel(/Enable misconfiguration scans/)).not.toBeChecked();
   await page.screenshot({ path: join(SCREENS, '07-settings.png'), fullPage: true });
 });
 

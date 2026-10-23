@@ -1,5 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.ts';
 import { createLogger } from './logger.ts';
 import { Db } from './db/index.ts';
@@ -14,9 +16,28 @@ import { Scheduler } from './jobs/scheduler.ts';
 import { buildServer } from './api/server.ts';
 import type { AppContext } from './api/context.ts';
 import { getScannerInfo } from './scanner/info.ts';
+import {
+  browserUrl,
+  checkDataDir,
+  checkWebDist,
+  ensureSupportedNode,
+  listenErrorHint,
+  StartupError,
+} from './startup.ts';
 
-async function main(): Promise<void> {
+export interface StartedServer {
+  host: string;
+  port: number;
+  url: string;
+  dataDir: string;
+}
+
+export async function start(): Promise<StartedServer> {
+  ensureSupportedNode();
   const config = loadConfig();
+  await checkWebDist(config.webDist);
+  await checkDataDir(config.dataDir);
+
   const log = createLogger(config.logLevel);
   const startedAt = Date.now();
 
@@ -48,14 +69,23 @@ async function main(): Promise<void> {
   };
 
   const app = await buildServer(ctx);
+  try {
+    await app.listen({ port: config.port, host: config.host });
+  } catch (error) {
+    await app.close().catch(() => undefined);
+    db.close();
+    throw listenErrorHint(error, config.host, config.port) ?? error;
+  }
+
   await coordinator.start();
   dispatcher.start();
   scheduler.start();
 
-  await app.listen({ port: config.port, host: config.host });
+  const url = browserUrl(config.host, config.port);
   log.info(
     {
       version: config.version,
+      url,
       port: config.port,
       host: config.host,
       dataDir: config.dataDir,
@@ -65,10 +95,17 @@ async function main(): Promise<void> {
     },
     'DockSentinel started',
   );
+  console.log(`DockSentinel is available at ${url}`);
 
   void getScannerInfo(config, true).then((info) => {
-    if (!info.available) log.warn({ error: info.error }, 'Trivy scanner is not available; scans will fail until it is installed');
-    else log.info({ version: info.version, dbUpdatedAt: info.dbUpdatedAt }, 'Trivy scanner detected');
+    if (!info.available) {
+      log.warn(
+        { error: info.error },
+        'Trivy scanner is not available; scans will fail until it is installed. Run "npm run native:setup" for the native installer.',
+      );
+    } else {
+      log.info({ version: info.version, dbUpdatedAt: info.dbUpdatedAt }, 'Trivy scanner detected');
+    }
   });
 
   let shuttingDown = false;
@@ -97,6 +134,8 @@ async function main(): Promise<void> {
   process.on('unhandledRejection', (reason) => {
     log.error({ reason: reason instanceof Error ? reason.message : String(reason) }, 'unhandled promise rejection');
   });
+
+  return { host: config.host, port: config.port, url, dataDir: config.dataDir };
 }
 
 function createSetupToken(
@@ -113,8 +152,19 @@ function createSetupToken(
   return () => (getUser(db) ? null : token);
 }
 
-main().catch((error) => {
-  // Startup failures must be loud and must exit non-zero so container restarts surface the problem.
-  console.error(error);
-  process.exit(1);
-});
+export function formatStartupError(error: unknown): string {
+  if (error instanceof StartupError) {
+    return `${error.message}${error.hint ? `\n${error.hint}` : ''}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+const directEntry = process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+if (directEntry) {
+  start().catch((error: unknown) => {
+    // Startup failures must be loud and must exit non-zero so service managers surface the problem.
+    console.error(formatStartupError(error));
+    if (!(error instanceof StartupError) && error instanceof Error && error.stack) console.error(error.stack);
+    process.exitCode = 1;
+  });
+}

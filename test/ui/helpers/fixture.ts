@@ -17,7 +17,9 @@ import {
 import { markScanFailed, queueScan } from '../../../src/repo/scans.ts';
 import { updateImageAfterScan } from '../../../src/repo/images.ts';
 import { seedSuccessfulScan } from '../../helpers/seed-scan.ts';
+import { applyContentFindings } from '../../../src/repo/content.ts';
 import type { NormalizedFinding } from '../../../src/domain/findings.ts';
+import type { NormalizedContentFinding } from '../../../src/domain/content.ts';
 
 export const TEST_PASSWORD = 'correct-horse-battery';
 const SECRET_KEY = Buffer.alloc(32, 11);
@@ -93,6 +95,8 @@ export async function seedInstance(dataDir: string): Promise<void> {
       scanOnDiscovery: false,
       kevEnabled: false,
       alertOnStale: false,
+      misconfigScanEnabled: true,
+      secretScanEnabled: true,
       freshnessHours: 48,
     });
 
@@ -166,7 +170,7 @@ export async function seedInstance(dataDir: string): Promise<void> {
       finding({ vulnId: 'CVE-2022-5555', pkgName: 'zlib1g', installedVersion: '1.2.11', fixedVersion: null, severity: 'MEDIUM', title: 'zlib out of bounds write' }),
       finding({ vulnId: 'CVE-2022-6666', pkgName: 'sudo', installedVersion: '1.9.5', fixedVersion: null, severity: 'LOW', title: 'sudo information disclosure' }),
     ];
-    seedSuccessfulScan(db, {
+    const phpScan = seedSuccessfulScan(db, {
       imageId: PHP_IMAGE,
       environmentId: 1,
       imageRef: 'php:8.1-apache',
@@ -179,6 +183,43 @@ export async function seedInstance(dataDir: string): Promise<void> {
       imageRef: 'nginx:1.25-alpine',
       findings: [],
       finishedAt: nowMinus(1),
+    });
+
+    const contentFindings: NormalizedContentFinding[] = [
+      {
+        kind: 'misconfiguration',
+        scope: 'image-config',
+        ruleId: 'DS-0002',
+        category: 'Dockerfile Security Check',
+        severity: 'HIGH',
+        title: 'Image user should not be root',
+        target: 'image config',
+        message: "Last USER command in Dockerfile should not be 'root'",
+        resolution: "Add 'USER <non root user name>' line to the Dockerfile",
+        primaryUrl: 'https://avd.aquasec.com/misconfig/ds-0002',
+        startLine: 3,
+        endLine: 3,
+      },
+      {
+        kind: 'secret',
+        scope: 'image',
+        ruleId: 'aws-access-key-id',
+        category: 'AWS',
+        severity: 'CRITICAL',
+        title: 'AWS Access Key ID',
+        target: 'app/config.js',
+        message: null,
+        resolution: null,
+        primaryUrl: null,
+        startLine: 4,
+        endLine: 4,
+      },
+    ];
+    applyContentFindings(db, {
+      imageId: PHP_IMAGE,
+      scanId: phpScan.scan.id,
+      findings: contentFindings,
+      now: nowMinus(2),
     });
 
     db.run(

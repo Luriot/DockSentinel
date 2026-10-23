@@ -36,13 +36,17 @@ administrative endpoints. All JSON responses use camelCase. Errors have the shap
 | `GET` | `/api/containers/:environmentId/:id` | Container detail, image, findings, scans |
 | `GET` | `/api/findings` | Filters: `q`, `severity` (comma list), `envId`, `imageId`, `kev`, `fixable`, `running`, `state=open\|resolved\|all`, paging |
 | `GET` | `/api/findings/:id` | Finding detail, image, events, scans |
-| `GET` | `/api/scans` | Filters: `status`, `imageId`, `envId`, paging |
+| `GET` | `/api/content-findings` | Opt-in misconfiguration/secret metadata; filters `kind`, `severity`, `state`, `imageId`, `q`, paging. Never contains secret values |
+| `GET` | `/api/scans` | Filters: `status`, `kind=vulnerability\|content`, `imageId`, `envId`, paging |
 | `GET` | `/api/scans/:id` | Scan detail |
 | `GET` | `/api/notifications` | ntfy public settings, alert history, delivery counts (`status`, `kind`, paging) |
 | `GET` | `/api/settings` | Public settings, KEV status, scanner status |
 | `GET` | `/api/system` | Version, runtime limits, activity, scanner/KEV status |
 
 Image IDs contain `:`. Encode them in the path (`sha256%3A…`); Fastify decodes them.
+
+`POST /api/images/:imageId/content-scan` takes no parameters. If a client sets
+`Content-Type: application/json`, send an empty object (`{}`) to satisfy the JSON body parser.
 
 ## Mutating endpoints
 
@@ -54,7 +58,8 @@ Image IDs contain `:`. Encode them in the path (`sha256%3A…`); Fastify decodes
 | `POST` | `/api/environments/:id/test` | Connectivity test; returns `{ ok, message, containers, images }` |
 | `POST` | `/api/environments/:id/discover` | Runs discovery synchronously; `502` when the endpoint is unreachable |
 | `POST` | `/api/images/:imageId/scan` | `{ profile: "quick"\|"standard" }`; `409` if a scan is already active |
-| `POST` | `/api/scans` | `{ imageId, profile? }`; queues a manual scan |
+| `POST` | `/api/images/:imageId/content-scan` | Opt-in misconfiguration/secret scan; `409` if disabled or a scan is active |
+| `POST` | `/api/scans` | `{ imageId, profile?, kind? }`; queues a manual vulnerability or content scan |
 | `POST` | `/api/scans/:id/cancel` | Cancels a queued/running scan |
 | `POST` | `/api/notifications/test` | Sends a test notification with the saved configuration |
 | `POST` | `/api/kev/sync` | Synchronises the CISA KEV catalogue (may take a few seconds) |
@@ -66,7 +71,7 @@ Top-level settings: `scanConcurrency`, `discoveryIntervalMinutes`, `defaultQuick
 `defaultStandardIntervalHours`, `freshnessHours`, `minAlertSeverity`, `alertOnNew`, `alertOnResolved`,
 `alertOnKev`, `alertOnScanFailure`, `alertOnStale`, `scanFailureRetries`, `scanOnDiscovery`,
 `retentionScansDays`, `retentionAlertsDays`, `retentionResolvedFindingsDays`, `retentionEventsDays`,
-`publicUrl`, `kevEnabled`.
+`publicUrl`, `kevEnabled`, `misconfigScanEnabled`, `secretScanEnabled`.
 
 `ntfy`: `enabled`, `baseUrl`, `topic`, `priority` (`min|low|default|high|urgent|max`), `tags`,
 `authType` (`none|basic|token`), `username`, `token`, `password`.

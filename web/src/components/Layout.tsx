@@ -23,6 +23,7 @@ import { Environments } from '../views/Environments.tsx';
 import { Containers } from '../views/Containers.tsx';
 import { Images } from '../views/Images.tsx';
 import { Vulnerabilities } from '../views/Vulnerabilities.tsx';
+import { Content } from '../views/Content.tsx';
 import { Scans } from '../views/Scans.tsx';
 import { Notifications } from '../views/Notifications.tsx';
 import { Settings } from '../views/Settings.tsx';
@@ -59,6 +60,11 @@ const ROUTES: Record<string, RouteDefinition> = {
     subtitle: 'Findings with fixes, exploitation signals and affected workloads',
     component: Vulnerabilities,
   },
+  '/content': {
+    title: 'Configuration & secrets',
+    subtitle: 'Opt-in image content and image config findings',
+    component: Content,
+  },
   '/scans': {
     title: 'Scan activity',
     subtitle: 'Running, scheduled, successful and failed scans',
@@ -82,6 +88,7 @@ const NAV_GROUPS = [
     items: [
       { path: '/', label: 'Overview', icon: IconDashboard },
       { path: '/vulnerabilities', label: 'Vulnerabilities', icon: IconBug },
+      { path: '/content', label: 'Config & secrets', icon: IconKey },
     ],
   },
   {

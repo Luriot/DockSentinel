@@ -239,6 +239,42 @@ export const MIGRATIONS: readonly Migration[] = [
       INSERT INTO kev_sync (id, status) VALUES (1, 'idle');
     `,
   },
+  {
+    version: 2,
+    name: 'content scans and findings',
+    sql: `
+      ALTER TABLE scans ADD COLUMN kind TEXT NOT NULL DEFAULT 'vulnerability'
+        CHECK (kind IN ('vulnerability','content'));
+      CREATE INDEX scans_kind ON scans(kind, queued_at DESC);
+
+      CREATE TABLE content_findings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        image_id TEXT NOT NULL REFERENCES images(image_id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('misconfiguration','secret')),
+        scope TEXT NOT NULL CHECK (scope IN ('image','image-config')),
+        identity TEXT NOT NULL,
+        rule_id TEXT NOT NULL,
+        category TEXT,
+        severity TEXT NOT NULL,
+        title TEXT NOT NULL,
+        target TEXT NOT NULL,
+        message TEXT,
+        resolution TEXT,
+        primary_url TEXT,
+        start_line INTEGER,
+        end_line INTEGER,
+        episode INTEGER NOT NULL DEFAULT 1,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        last_scan_id INTEGER,
+        resolved_at TEXT,
+        UNIQUE (image_id, identity)
+      ) STRICT;
+      CREATE INDEX content_findings_image ON content_findings(image_id, resolved_at);
+      CREATE INDEX content_findings_state ON content_findings(resolved_at, severity);
+      CREATE INDEX content_findings_kind ON content_findings(kind, resolved_at);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

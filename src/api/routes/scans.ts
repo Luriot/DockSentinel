@@ -2,7 +2,7 @@
 import type { AppContext } from '../context.ts';
 import { conflict, notFound } from '../errors.ts';
 import { parseId, parsePagination } from '../http.ts';
-import { getScan, listScans, type ScanStatus } from '../../repo/scans.ts';
+import { getScan, listScans, type ScanKind, type ScanStatus } from '../../repo/scans.ts';
 import { describeImage } from '../../repo/images.ts';
 import { getEnvironment } from '../../repo/environments.ts';
 import type { ScanProfile } from '../../scanner/trivy.ts';
@@ -21,6 +21,7 @@ export function registerScanRoutes(app: FastifyInstance, ctx: AppContext): void 
             status: { type: 'string', enum: ['queued', 'running', 'success', 'failed', 'cancelled'] },
             imageId: { type: 'string', maxLength: 100 },
             envId: { type: 'integer', minimum: 1 },
+            kind: { type: 'string', enum: ['vulnerability', 'content'] },
             page: { type: 'integer', minimum: 1 },
             pageSize: { type: 'integer', minimum: 1, maximum: 100 },
           },
@@ -32,6 +33,7 @@ export function registerScanRoutes(app: FastifyInstance, ctx: AppContext): void 
         status?: string;
         imageId?: string;
         envId?: number;
+        kind?: string;
         page?: number;
         pageSize?: number;
       };
@@ -41,6 +43,7 @@ export function registerScanRoutes(app: FastifyInstance, ctx: AppContext): void 
         status,
         imageId: query.imageId,
         environmentId: query.envId,
+        kind: query.kind === 'content' ? 'content' : query.kind === 'vulnerability' ? 'vulnerability' : undefined,
         page,
         pageSize,
       });
@@ -71,13 +74,18 @@ export function registerScanRoutes(app: FastifyInstance, ctx: AppContext): void 
           properties: {
             imageId: { type: 'string', minLength: 1, maxLength: 100 },
             profile: { type: 'string', enum: ['quick', 'standard'] },
+            kind: { type: 'string', enum: ['vulnerability', 'content'] },
           },
         },
       },
     },
     async (req, reply) => {
-      const body = req.body as { imageId: string; profile?: ScanProfile };
-      const result = ctx.coordinator.enqueueManual(body.imageId, body.profile === 'quick' ? 'quick' : 'standard');
+      const body = req.body as { imageId: string; profile?: ScanProfile; kind?: ScanKind };
+      const result = ctx.coordinator.enqueueManual(
+        body.imageId,
+        body.profile === 'quick' ? 'quick' : 'standard',
+        body.kind === 'content' ? 'content' : 'vulnerability',
+      );
       if (!result.queued) conflict(result.message, 'scan_not_queued');
       reply.code(202);
       return { scanId: result.scanId, message: result.message };

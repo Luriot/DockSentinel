@@ -6,6 +6,7 @@ import {
   type FindingView,
   type ImageSummary,
   type OverviewData,
+  type PublicSettings,
   type ScanRecord,
   type SeverityCounts,
 } from '../api.ts';
@@ -81,6 +82,9 @@ export function Images() {
   });
   const environments = useApi<{ items: EnvironmentSummary[] }>('/environments');
   const overview = useApi<OverviewData>('/overview', { intervalMs: 60_000 });
+  const settings = useApi<{ settings: PublicSettings }>('/settings');
+  const contentEnabled =
+    Boolean(settings.data?.settings.misconfigScanEnabled) || Boolean(settings.data?.settings.secretScanEnabled);
   const freshnessHours = overview.data?.freshnessHours ?? 48;
 
   async function scan(imageId: string, profile: 'quick' | 'standard'): Promise<void> {
@@ -89,6 +93,15 @@ export function Images() {
       toast(`${titleCase(profile)} scan queued`, 'success');
     } catch (scanError) {
       toast(scanError instanceof Error ? scanError.message : 'Unable to queue scan', 'error');
+    }
+  }
+
+  async function scanContent(imageId: string): Promise<void> {
+    try {
+      await api.post(`/images/${encodeURIComponent(imageId)}/content-scan`);
+      toast('Configuration & secrets scan queued', 'success');
+    } catch (scanError) {
+      toast(scanError instanceof Error ? scanError.message : 'Unable to queue content scan', 'error');
     }
   }
 
@@ -297,6 +310,8 @@ export function Images() {
           freshnessHours={freshnessHours}
           onClose={() => setSelected(null)}
           onScan={(imageId, profile) => void scan(imageId, profile)}
+          contentEnabled={contentEnabled}
+          onContentScan={(imageId) => void scanContent(imageId)}
         />
       ) : null}
     </div>
@@ -308,11 +323,15 @@ function ImageDrawer({
   freshnessHours,
   onClose,
   onScan,
+  contentEnabled,
+  onContentScan,
 }: {
   imageId: string;
   freshnessHours: number;
   onClose: () => void;
   onScan: (imageId: string, profile: 'quick' | 'standard') => void;
+  contentEnabled: boolean;
+  onContentScan: (imageId: string) => void;
 }) {
   const { data, error, loading, refresh } = useApi<ImageDetail>(`/images/${encodeURIComponent(imageId)}`);
   const stale =
@@ -330,6 +349,11 @@ function ImageDrawer({
             <button type="button" className="btn ghost" onClick={onClose}>
               Close
             </button>
+            {contentEnabled ? (
+              <button type="button" className="btn ghost" onClick={() => onContentScan(data.image.imageId)}>
+                <IconLayers width={13} height={13} /> Content scan
+              </button>
+            ) : null}
             <button type="button" className="btn ghost" onClick={() => onScan(data.image.imageId, 'quick')}>
               <IconPlay width={13} height={13} /> Quick scan
             </button>

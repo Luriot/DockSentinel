@@ -13,6 +13,52 @@ reverse-proxying it, upgrading, backing up and troubleshooting.
 - CPU/RAM: 1–2 vCPU and 1–2 GiB are enough for a small home lab; memory rises while Trivy unpacks large
   images. Two concurrent scans are the default.
 
+## Native mode (no DockSentinel container)
+
+DockSentinel can run directly with Node.js while still monitoring Docker endpoints. The app process does
+not require Docker, but a Docker endpoint is still needed to discover and scan workloads.
+
+**Prerequisite:** Node.js 24.12+ (native TypeScript execution and `node:sqlite`). Node's single-executable
+application support is still active development and would require bundling/asset plumbing, so this release
+does not ship a self-contained executable. The Docker image remains the dependency-free deployment.
+
+```bash
+npm ci
+npm run native:setup
+npm run native
+# optional: npm run native -- --open
+```
+
+`native:setup` builds the production UI and downloads the pinned Trivy release matching the OS/architecture
+from the official GitHub release. It verifies the SHA-256 checksum before extracting or executing the binary,
+installs it atomically, and verifies `trivy --version`. Use `--force` to reinstall. `TRIVY_VERSION` overrides
+the pinned version (checksums still required). `TRIVY_BIN` selects an existing scanner at launch; the
+setup command still installs the managed copy.
+
+Native data is per-user and persistent:
+
+| Platform | Default |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\DockSentinel` |
+| macOS | `~/Library/Application Support/DockSentinel` |
+| Linux | `$XDG_DATA_HOME/docksentinel` or `~/.local/share/docksentinel` |
+
+It contains the SQLite database, `secret.key`, `tools/trivy[.exe]`, `trivy-cache` and `tmp`. Override with
+`DATA_DIR`. The launcher binds to `127.0.0.1` by default; set `HOST` deliberately to expose it. Startup
+failures (port in use, missing UI build, unwritable data folder, missing scanner) print actionable messages.
+
+Connect Docker after setup:
+
+- Windows Docker Desktop: kind `unix`, address `//./pipe/docker_engine`.
+- Linux/macOS local Docker: kind `unix`, address `/var/run/docker.sock`.
+- Remote host: `tcp` or `tls` with `host:2376`.
+
+Verified on Windows: checksum-verified Trivy install, native launch and health, first-run setup, Docker
+Desktop named-pipe discovery, a real vulnerability scan with the managed scanner, port-conflict guidance and
+restart persistence. macOS/Linux native installation uses the same Node code but the tar/launcher path was
+not executed in this environment; treat those platforms as untested. Graceful signal handling is shared with
+the container path (verified there).
+
 ## Compose (local Docker socket)
 
 ```bash

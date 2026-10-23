@@ -113,6 +113,17 @@ export function registerInventoryRoutes(app: FastifyInstance, ctx: AppContext): 
     },
   );
 
+  app.post('/images/:imageId/content-scan', async (req, reply) => {
+    const imageId = (req.params as { imageId: string }).imageId;
+    const result = ctx.coordinator.enqueueManual(imageId, 'quick', 'content');
+    if (!result.queued) {
+      reply.code(409);
+      return { error: { code: 'scan_not_queued', message: result.message } };
+    }
+    reply.code(202);
+    return { scanId: result.scanId, message: result.message };
+  });
+
   app.get(
     '/containers',
     {

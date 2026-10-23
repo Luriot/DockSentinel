@@ -60,6 +60,28 @@ Assumptions:
   logs contain method, URL, status and timing, not bodies or cookies.
 - Client secrets are never written to the database in plaintext. Note that backups necessarily contain
   encrypted secrets and the key; protect backups accordingly.
+- Opt-in secret scanning is deliberately metadata-only. Trivy writes a temporary JSON report containing raw
+  matches/code into the per-scan scratch directory (mode `0700`, removed immediately after parsing). The
+  parser never copies `Match`, `Code` or layer contents; SQLite, API responses, logs, notifications and UI
+  contain only rule, category, path, line range and severity. Content-scan errors are generic and discard
+  scanner stderr so secret material cannot leak through an error message.
+- Secret findings can be false positives. A clean secret scan is not proof that an image contains no
+  credentials.
+
+## Native execution
+
+- The native launcher stores the database, encryption key, scanner cache, scratch data and managed Trivy
+  binary in a per-user data folder (`%LOCALAPPDATA%\DockSentinel`, Application Support, or XDG data),
+  not in the repository. Set `DATA_DIR` deliberately if using a shared or service account.
+- Native mode binds to `127.0.0.1` by default. Setting `HOST=0.0.0.0` exposes the same authenticated UI to
+  the network and requires the same reverse-proxy/TLS care as the container deployment.
+- The installer downloads only the pinned official Trivy release, verifies the official SHA-256 checksum
+  before extraction or execution, installs atomically and verifies `trivy --version`. It never executes an
+  unverified download. A user-supplied `TRIVY_BIN` is trusted as-is.
+- Node.js 24.12+ remains a prerequisite; no self-contained executable is shipped. Node SEA is still active
+  development and would add bundling/asset complexity without improving the supported Docker deployment.
+- Windows Docker Desktop is reached through its named pipe (`//./pipe/docker_engine`), which has the same
+  effective host-root privilege as the Unix socket. The same socket-access warnings apply.
 
 ## Docker socket access
 
@@ -137,9 +159,10 @@ consequences:
 - No multi-factor authentication, SSO, or multiple users/roles. The model is a single trusted operator.
 - No per-action audit trail beyond scans, finding events, alerts and structured request logs.
 - Login/setup rate limiting is per-process and in memory; a restart clears counters.
-- The setup token is printed to the container log. Protect log access and complete setup promptly.
-- Docker API errors and scanner stderr are stored/displayed; they can contain internal hostnames. The UI
-  is authenticated, but the database and backups then contain that information.
+- The setup token is printed to the process/container log. Protect log access and complete setup promptly.
+- Docker API errors and vulnerability-scan stderr are stored/displayed; they can contain internal
+  hostnames. Content-scan stderr is intentionally discarded. The UI is authenticated, but the database and
+  backups then contain stored error text.
 - KEV data is fetched over TLS from a single external source without signature verification beyond TLS.
   If the source is unavailable, last-known data is kept and marked stale.
 - Trivy database freshness depends on outbound network access. An air-gapped deployment must pre-seed the
@@ -151,6 +174,10 @@ consequences:
   limitation, not something DockSentinel asserts around.
 - Deployment over plain HTTP exposes the session to network interception. Terminate TLS at the reverse
   proxy and set `TRUST_PROXY=true` and `COOKIE_SECURE=always`, or bind to a trusted interface.
+- Native mode was executed on Windows only. The same Node code targets macOS/Linux, but the native
+  installer/launcher path was not run there; treat those platforms as untested until verified.
+- Content scanning is not a host, daemon, Kubernetes or running-container audit. It inspects image config
+  and image files only, and image-content misconfiguration checks are useful only when IaC files are present.
 
 ## Hardening checklist
 

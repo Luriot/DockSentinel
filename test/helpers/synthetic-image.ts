@@ -51,11 +51,18 @@ Version: 7.74.0-1.3+deb11u3
 Description: command line tool for transferring data with URL syntax
 `;
 
+export interface SyntheticImageOptions {
+  /** Additional files in the image layer, used by content-scan tests. */
+  extraEntries?: TarEntry[];
+  /** Additional image config environment entries, used by image-config secret tests. */
+  configEnv?: string[];
+}
+
 /**
  * Builds a tiny Debian 11 docker-save archive with deliberately outdated packages so the real
  * Trivy binary can be exercised without a Docker daemon.
  */
-export function buildSyntheticImage(): SyntheticImage {
+export function buildSyntheticImage(options: SyntheticImageOptions = {}): SyntheticImage {
   const tag = 'docksentinel-test:1';
   const layerEntries: TarEntry[] = [
     { name: 'etc', type: 'directory' },
@@ -69,6 +76,7 @@ export function buildSyntheticImage(): SyntheticImage {
     { name: 'var/lib', type: 'directory' },
     { name: 'var/lib/dpkg', type: 'directory' },
     { name: 'var/lib/dpkg/status', content: VULNERABLE_STATUS },
+    ...(options.extraEntries ?? []),
   ];
   const layerTar = createTar(layerEntries);
   const diffId = createHash('sha256').update(layerTar).digest('hex');
@@ -76,7 +84,12 @@ export function buildSyntheticImage(): SyntheticImage {
   const config = {
     architecture: 'amd64',
     os: 'linux',
-    config: { Env: ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'] },
+    config: {
+      Env: [
+        'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        ...(options.configEnv ?? []),
+      ],
+    },
     rootfs: { type: 'layers', diff_ids: [`sha256:${diffId}`] },
     history: [{ created: '2025-01-01T00:00:00Z', created_by: 'docksentinel synthetic test image' }],
   };

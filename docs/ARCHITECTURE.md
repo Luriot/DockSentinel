@@ -35,7 +35,8 @@ src/
 │  ├─ priority.ts           transparent priority tiers
 │  ├─ policy.ts             labels and alert thresholds
 │  ├─ labels.ts             label allowlist
-│  └─ findings.ts           normalised finding type, diffing, counting
+│  ├─ findings.ts           normalised finding type, diffing, counting
+│  └─ content.ts            opt-in misconfiguration/secret metadata and identity
 ├─ docker/
 │  ├─ client.ts             read-only Docker API client (unix/tcp/tls), image export
 │  └─ normalize.ts          Docker JSON → internal container/image shapes
@@ -59,12 +60,15 @@ src/
 │  ├─ service.ts            alert evaluation, thresholds, deduplication
 │  └─ dispatcher.ts         delivery loop, retries/backoff, history
 ├─ repo/                    SQL access grouped by aggregate
-│  ├─ environments, images, containers, findings, scans, alerts, settings, kev, overview
+│  ├─ environments, images, containers, findings, content, scans, alerts, settings, kev, overview
+├─ startup.ts               startup preflight and actionable errors
 ├─ auth.ts, passwords.ts, secrets.ts, security/rate-limit.ts
+├─ scripts/native.ts        native launcher (loopback default, managed Trivy)
+├─ scripts/native-setup.ts  UI build + checksum-verified Trivy installer
 ├─ api/
 │  ├─ server.ts             Fastify instance, security headers, auth hook, static SPA
 │  ├─ http.ts               session/CSRF/origin helpers, pagination
-│  └─ routes/               auth, environments, inventory, findings, scans, system
+│  └─ routes/               auth, environments, inventory, findings, content, scans, system
 └─ web/                     React SPA source (built to web/dist)
 ```
 
@@ -85,8 +89,9 @@ transactions cannot interleave with other writers.
 | `images` | Keyed by immutable Docker image ID (`sha256:…`), plus OS, size, last scan status and denormalised finding counts |
 | `image_locations` | Which tag/digest reference exists on which environment (replaced atomically on discovery) |
 | `containers` | Current inventory keyed by `(environment_id, docker_id)`, state, filtered labels, ports, exposure classification, `present` flag |
-| `scans` | One row per attempt: profile, trigger, status, timings, counts, scanner/DB versions, error, warnings, attempt count |
-| `findings` | Current state per image/identity, severity, fix, CVSS, KEV flag, episode, first/last seen, resolution |
+| `scans` | One row per attempt: kind (`vulnerability`/`content`), profile, trigger, status, timings, counts, scanner/DB versions, error, warnings, attempt count |
+| `findings` | Current vulnerability state per image/identity, severity, fix, CVSS, KEV flag, episode, first/last seen, resolution |
+| `content_findings` | Opt-in misconfiguration/secret metadata per image/identity; rule, path, line, category, severity, episode, resolution. Never secret values or code |
 | `finding_events` | Append-only lifecycle history: appeared, resolved, reappeared, changed |
 | `alerts` | Notification records with dedupe key, rendered body, delivery status, attempts, last error, next attempt |
 | `kev`, `kev_sync` | CISA catalogue snapshot and last synchronization outcome |
@@ -138,6 +143,21 @@ scheduler / manual action
         ▼
   alert evaluation (new/resolved/fixes/KEV) → alerts queue → dispatcher → ntfy
 ```
+
+A content scan follows the same queue/export/scratch path but branches at the scanner arguments
+(`--scanners misconfig,secret --image-config-scanners misconfig,secret`). Its findings are written to
+`content_findings`, never to vulnerability counters or alert evaluation, and only a successful, parsed
+report may resolve previous content findings. The raw secret `Match`/code fields are dropped during
+parsing.
+
+## Native bootstrap
+
+`scripts/native.ts` sets a per-user `DATA_DIR`, binds to `127.0.0.1` unless configured otherwise, selects
+the managed or configured Trivy binary, and calls the exported `start()` bootstrap. `native-setup.ts`
+builds the SPA and downloads the pinned official Trivy archive, verifies its SHA-256 checksum, installs it
+atomically and checks `trivy --version`. Startup preflight reports a missing UI build, unwritable data
+folder, port conflict and unsupported Node version with actionable messages. The Docker entrypoint is
+unchanged.
 
 Why export the image instead of letting Trivy talk to the Docker daemon:
 

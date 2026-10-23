@@ -40,6 +40,9 @@ export interface AppSettings {
   retentionEventsDays: number;
   publicUrl: string;
   kevEnabled: boolean;
+  /** Opt-in manual content scans; both default off. */
+  misconfigScanEnabled: boolean;
+  secretScanEnabled: boolean;
   ntfy: NtfySettings;
 }
 
@@ -63,6 +66,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   retentionEventsDays: 180,
   publicUrl: '',
   kevEnabled: true,
+  misconfigScanEnabled: false,
+  secretScanEnabled: false,
   ntfy: {
     enabled: false,
     baseUrl: 'https://ntfy.sh',
@@ -170,6 +175,8 @@ export function loadSettings(db: Db, key: Buffer): AppSettings {
     retentionEventsDays: clampInt(stored.retentionEventsDays, DEFAULT_SETTINGS.retentionEventsDays, 30, 3650),
     publicUrl: text(stored.publicUrl, DEFAULT_SETTINGS.publicUrl, 500),
     kevEnabled: bool(stored.kevEnabled, DEFAULT_SETTINGS.kevEnabled),
+    misconfigScanEnabled: bool(stored.misconfigScanEnabled, DEFAULT_SETTINGS.misconfigScanEnabled),
+    secretScanEnabled: bool(stored.secretScanEnabled, DEFAULT_SETTINGS.secretScanEnabled),
     ntfy: {
       enabled: bool(ntfyStored.enabled, DEFAULT_SETTINGS.ntfy.enabled),
       baseUrl: text(ntfyStored.baseUrl, DEFAULT_SETTINGS.ntfy.baseUrl, 500),

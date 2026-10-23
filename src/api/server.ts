@@ -13,6 +13,7 @@ import { registerInventoryRoutes } from './routes/inventory.ts';
 import { registerFindingRoutes } from './routes/findings.ts';
 import { registerScanRoutes } from './routes/scans.ts';
 import { registerSystemRoutes } from './routes/system.ts';
+import { registerContentRoutes } from './routes/content.ts';
 
 const CSP = [
   "default-src 'self'",
@@ -109,6 +110,7 @@ export async function buildServer(ctx: AppContext) {
       registerFindingRoutes(api, ctx);
       registerScanRoutes(api, ctx);
       registerSystemRoutes(api, ctx);
+      registerContentRoutes(api, ctx);
     },
     { prefix: '/api' },
   );

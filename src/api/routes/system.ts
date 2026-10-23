@@ -50,6 +50,8 @@ interface SettingsPatch {
   retentionEventsDays?: number;
   publicUrl?: string;
   kevEnabled?: boolean;
+  misconfigScanEnabled?: boolean;
+  secretScanEnabled?: boolean;
   ntfy?: NtfyPatch;
 }
 
@@ -76,6 +78,8 @@ const settingsSchema = {
     retentionEventsDays: { type: 'integer', minimum: 30, maximum: 3650 },
     publicUrl: { type: 'string', maxLength: 500 },
     kevEnabled: { type: 'boolean' },
+    misconfigScanEnabled: { type: 'boolean' },
+    secretScanEnabled: { type: 'boolean' },
     ntfy: {
       type: 'object',
       additionalProperties: false,

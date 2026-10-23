@@ -5,12 +5,14 @@ import { nowIso } from '../util/time.ts';
 import { pruneScans } from '../repo/scans.ts';
 import { pruneAlerts } from '../repo/alerts.ts';
 import { pruneResolvedFindings } from '../repo/findings.ts';
+import { pruneContentFindings } from '../repo/content.ts';
 
 export interface MaintenanceResult {
   scans: number;
   alerts: number;
   events: number;
   findings: number;
+  contentFindings: number;
   containers: number;
   images: number;
 }
@@ -27,6 +29,7 @@ export function runMaintenance(db: Db, settings: AppSettings, log: Logger): Main
     const scans = pruneScans(db, cutoff(settings.retentionScansDays));
     const alerts = pruneAlerts(db, cutoff(settings.retentionAlertsDays));
     const findings = pruneResolvedFindings(db, cutoff(settings.retentionResolvedFindingsDays));
+    const contentFindings = pruneContentFindings(db, cutoff(settings.retentionResolvedFindingsDays));
     const events = db.run('DELETE FROM finding_events WHERE created_at < ?', [cutoff(settings.retentionEventsDays)]).changes;
     const containers = db.run(
       `DELETE FROM containers WHERE present = 0 AND last_seen_at < ?`,
@@ -41,7 +44,7 @@ export function runMaintenance(db: Db, settings: AppSettings, log: Logger): Main
     ).changes;
     db.run(`DELETE FROM sessions WHERE expires_at < ?`, [nowIso()]);
     db.run(`DELETE FROM scans WHERE status = 'queued' AND queued_at < ?`, [cutoff(7)]);
-    return { scans, alerts, events, findings, containers, images };
+    return { scans, alerts, events, findings, contentFindings, containers, images };
   });
 
   try {
@@ -52,7 +55,13 @@ export function runMaintenance(db: Db, settings: AppSettings, log: Logger): Main
   }
 
   if (
-    result.scans + result.alerts + result.events + result.findings + result.containers + result.images >
+    result.scans +
+      result.alerts +
+      result.events +
+      result.findings +
+      result.contentFindings +
+      result.containers +
+      result.images >
     0
   ) {
     log.info(result, 'retention cleanup completed');

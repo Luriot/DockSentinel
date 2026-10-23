@@ -2,6 +2,9 @@ export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 export type PriorityTier = 'P1' | 'P2' | 'P3' | 'P4';
 export type ExposureState = 'confirmed' | 'potential' | 'internal' | 'unknown';
 export type ScanStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
+export type ScanKind = 'vulnerability' | 'content';
+export type ContentKind = 'misconfiguration' | 'secret';
+export type ContentScope = 'image' | 'image-config';
 
 export interface ApiError extends Error {
   code: string;
@@ -211,6 +214,7 @@ export interface ScanRecord {
   environmentId: number | null;
   imageId: string;
   imageRef: string;
+  kind: ScanKind;
   profile: 'quick' | 'standard';
   trigger: 'manual' | 'schedule' | 'new_image' | 'retry';
   status: ScanStatus;
@@ -236,6 +240,38 @@ export interface ScanRecord {
   exitCode: number | null;
   attempts: number;
   warnings: string[];
+}
+
+export interface ContentFinding {
+  id: number;
+  imageId: string;
+  imageRef: string;
+  kind: ContentKind;
+  scope: ContentScope;
+  ruleId: string;
+  category: string | null;
+  severity: Severity;
+  title: string;
+  target: string;
+  message: string | null;
+  resolution: string | null;
+  primaryUrl: string | null;
+  startLine: number | null;
+  endLine: number | null;
+  episode: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  lastScanId: number | null;
+  resolvedAt: string | null;
+}
+
+export interface ContentFindingsResponse {
+  items: ContentFinding[];
+  total: number;
+  counts: SeverityCounts;
+  byKind: Record<ContentKind, number>;
+  page: number;
+  pageSize: number;
 }
 
 export interface AlertRecord {
@@ -297,6 +333,8 @@ export interface PublicSettings {
   retentionEventsDays: number;
   publicUrl: string;
   kevEnabled: boolean;
+  misconfigScanEnabled: boolean;
+  secretScanEnabled: boolean;
   ntfy: {
     enabled: boolean;
     baseUrl: string;

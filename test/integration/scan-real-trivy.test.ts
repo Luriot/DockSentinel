@@ -15,6 +15,10 @@ let image: SyntheticImage;
 let environmentId: number;
 let imageId: string;
 
+const FAKE_ENV_TOKEN = 'ghp_FAKEfakeFAKEfakeFAKEfakeFAKEfake1234';
+const FAKE_AWS_KEY = 'AKIAFAKEFAKEFAKE1234';
+const CONTENT_DOCKERFILE = `FROM alpine:3.20\nUSER root\nCOPY secret.txt /app/secret.txt\n`;
+
 async function waitForScan(
   app: TestApp['app'],
   headers: Record<string, string>,
@@ -35,7 +39,14 @@ async function waitForScan(
 
 before(async () => {
   if (!canRun) return;
-  image = buildSyntheticImage();
+  image = buildSyntheticImage({
+    configEnv: [`GITHUB_TOKEN=${FAKE_ENV_TOKEN}`],
+    extraEntries: [
+      { name: 'app', type: 'directory' },
+      { name: 'app/Dockerfile', content: CONTENT_DOCKERFILE },
+      { name: 'app/secret.txt', content: `aws_access_key_id = ${FAKE_AWS_KEY}\n` },
+    ],
+  });
   docker = await startFakeDocker({
     images: [
       {
@@ -267,4 +278,136 @@ test('a failed scan keeps previous findings and never reports a clean image', { 
 test('scan work directories are removed after completion', { skip: !canRun }, async () => {
   const entries = await readdir(join(harness.config.dataDir, 'tmp')).catch(() => [] as string[]);
   assert.deepEqual(entries.filter((entry) => entry.startsWith('scan-')), []);
+});
+
+test('opt-in content scan stores metadata without secret values and preserves vuln state', { skip: !canRun }, async () => {
+  const vulnBefore = await harness.app.inject({
+    method: 'GET',
+    url: `/api/findings?imageId=${encodeURIComponent(imageId)}&state=open&pageSize=1`,
+    headers: authHeaders(harness),
+  });
+  const vulnBeforeCount = vulnBefore.json<{ total: number }>().total;
+  const imageBefore = await harness.app.inject({
+    method: 'GET',
+    url: `/api/images/${encodeURIComponent(imageId)}`,
+    headers: authHeaders(harness),
+  });
+  const lastScanStatusBefore = imageBefore.json<{ image: { lastScanStatus: string } }>().image.lastScanStatus;
+
+  const enabled = await harness.app.inject({
+    method: 'PATCH',
+    url: '/api/settings',
+    headers: authHeaders(harness, true),
+    payload: { misconfigScanEnabled: true, secretScanEnabled: true },
+  });
+  assert.equal(enabled.statusCode, 200, enabled.body);
+
+  const queued = await harness.app.inject({
+    method: 'POST',
+    url: `/api/images/${encodeURIComponent(imageId)}/content-scan`,
+    headers: authHeaders(harness, true),
+  });
+  assert.equal(queued.statusCode, 202, queued.body);
+  const scan = await waitForScan(harness.app, authHeaders(harness), queued.json<{ scanId: number }>().scanId);
+  assert.equal(scan.status, 'success', JSON.stringify(scan));
+  assert.equal(scan.kind, 'content');
+  assert.ok(Number(scan.total) >= 2, `expected content findings, got ${scan.total}`);
+
+  const content = await harness.app.inject({
+    method: 'GET',
+    url: `/api/content-findings?state=all&pageSize=100`,
+    headers: authHeaders(harness),
+  });
+  assert.equal(content.statusCode, 200, content.body);
+  const contentBody = content.json<{
+    items: {
+      kind: string;
+      scope: string;
+      target: string;
+      ruleId: string;
+      severity: string;
+      title: string;
+    }[];
+    byKind: { misconfiguration: number; secret: number };
+    total: number;
+  }>();
+  assert.ok(contentBody.total >= 2);
+  assert.ok(contentBody.byKind.misconfiguration >= 1);
+  assert.ok(contentBody.byKind.secret >= 1);
+  assert.ok(contentBody.items.some((item) => item.scope === 'image-config'));
+  assert.ok(contentBody.items.some((item) => item.target === 'app/secret.txt'));
+  const serialized = JSON.stringify(contentBody);
+  assert.equal(serialized.includes(FAKE_ENV_TOKEN), false);
+  assert.equal(serialized.includes(FAKE_AWS_KEY), false);
+  assert.equal(serialized.includes('Match'), false);
+  assert.equal(serialized.includes('Code'), false);
+
+  const rows = harness.ctx.db.all<Record<string, unknown>>('SELECT * FROM content_findings');
+  const stored = JSON.stringify(rows);
+  assert.equal(stored.includes(FAKE_ENV_TOKEN), false);
+  assert.equal(stored.includes(FAKE_AWS_KEY), false);
+
+  const vulnAfter = await harness.app.inject({
+    method: 'GET',
+    url: `/api/findings?imageId=${encodeURIComponent(imageId)}&state=open&pageSize=1`,
+    headers: authHeaders(harness),
+  });
+  assert.equal(vulnAfter.json<{ total: number }>().total, vulnBeforeCount);
+  const imageAfter = await harness.app.inject({
+    method: 'GET',
+    url: `/api/images/${encodeURIComponent(imageId)}`,
+    headers: authHeaders(harness),
+  });
+  assert.equal(
+    imageAfter.json<{ image: { lastScanStatus: string } }>().image.lastScanStatus,
+    lastScanStatusBefore,
+    'content scans must not overwrite vulnerability scan status',
+  );
+
+  const contentScans = await harness.app.inject({
+    method: 'GET',
+    url: `/api/scans?kind=content&imageId=${encodeURIComponent(imageId)}`,
+    headers: authHeaders(harness),
+  });
+  assert.ok(contentScans.json<{ items: { kind: string }[] }>().items.every((entry) => entry.kind === 'content'));
+
+  docker.setFailure('/get', { status: 500, body: 'simulated content export failure' });
+  const failedQueue = await harness.app.inject({
+    method: 'POST',
+    url: `/api/images/${encodeURIComponent(imageId)}/content-scan`,
+    headers: authHeaders(harness, true),
+  });
+  assert.equal(failedQueue.statusCode, 202, failedQueue.body);
+  const failedScan = await waitForScan(
+    harness.app,
+    authHeaders(harness),
+    failedQueue.json<{ scanId: number }>().scanId,
+  );
+  assert.equal(failedScan.status, 'failed');
+  docker.setFailure('/get', null);
+
+  const afterFailure = await harness.app.inject({
+    method: 'GET',
+    url: `/api/content-findings?state=open&pageSize=100`,
+    headers: authHeaders(harness),
+  });
+  assert.equal(
+    afterFailure.json<{ total: number }>().total,
+    contentBody.total,
+    'failed content scans must not resolve previous findings',
+  );
+
+  const disabled = await harness.app.inject({
+    method: 'PATCH',
+    url: '/api/settings',
+    headers: authHeaders(harness, true),
+    payload: { misconfigScanEnabled: false, secretScanEnabled: false },
+  });
+  assert.equal(disabled.statusCode, 200, disabled.body);
+  const refused = await harness.app.inject({
+    method: 'POST',
+    url: `/api/images/${encodeURIComponent(imageId)}/content-scan`,
+    headers: authHeaders(harness, true),
+  });
+  assert.equal(refused.statusCode, 409);
 });

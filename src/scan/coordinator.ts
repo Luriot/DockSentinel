@@ -6,6 +6,7 @@ import type { Logger } from '../logger.ts';
 import { DockerClient, DockerError } from '../docker/client.ts';
 import { getEnvironment, toDockerConnection, type EnvironmentRecord } from '../repo/environments.ts';
 import { applyScanFindings, type ApplyScanOutcome } from '../repo/findings.ts';
+import { applyContentFindings } from '../repo/content.ts';
 import { describeImage, listScanEnvironments, updateImageAfterScan } from '../repo/images.ts';
 import {
   claimNextScan,
@@ -14,10 +15,17 @@ import {
   markScanFailed,
   markScanSuccess,
   queueScan,
+  type ScanKind,
   type ScanRecord,
   type ScanTrigger,
 } from '../repo/scans.ts';
-import { ScannerError, TrivyAdapter, type ScanProfile, type ScannerRunResult } from '../scanner/trivy.ts';
+import {
+  ScannerError,
+  TrivyAdapter,
+  type ContentScanners,
+  type ScanProfile,
+  type ScannerRunResult,
+} from '../scanner/trivy.ts';
 import { invalidateScannerInfo } from '../scanner/info.ts';
 import { recoverInterruptedScans } from './recovery.ts';
 import type { AlertService } from '../notify/service.ts';
@@ -108,12 +116,19 @@ export class ScanCoordinator {
     return this.running.size;
   }
 
-  enqueueManual(imageId: string, profile: ScanProfile): QueueResult {
+  enqueueManual(imageId: string, profile: ScanProfile, kind: ScanKind = 'vulnerability'): QueueResult {
     const image = this.db.get<{ image_id: string }>('SELECT image_id FROM images WHERE image_id = ?', [imageId]);
     if (!image) return { queued: false, scanId: null, message: 'Image is not in the inventory' };
     const environments = listScanEnvironments(this.db, imageId);
     if (environments.length === 0) {
       return { queued: false, scanId: null, message: 'No enabled Docker environment currently holds this image' };
+    }
+    if (kind === 'content' && !this.contentScanners()) {
+      return {
+        queued: false,
+        scanId: null,
+        message: 'Enable misconfiguration and/or secret scanning in Settings before requesting a content scan',
+      };
     }
     const display = describeImage(this.db, imageId);
     const scanId = queueScan(
@@ -122,14 +137,15 @@ export class ScanCoordinator {
         environmentId: environments[0] ?? null,
         imageId,
         imageRef: display.displayRef,
-        profile,
+        kind,
+        profile: kind === 'content' ? 'quick' : profile,
         trigger: 'manual',
         priority: 100,
       },
       true,
     );
     if (!scanId) return { queued: false, scanId: null, message: 'A scan for this image is already queued or running' };
-    this.log.info({ scanId, imageId, profile }, 'manual scan queued');
+    this.log.info({ scanId, imageId, profile, kind }, 'manual scan queued');
     void this.tick();
     return { queued: true, scanId, message: 'Scan queued' };
   }
@@ -144,6 +160,7 @@ export class ScanCoordinator {
         environmentId: environments[0] ?? null,
         imageId,
         imageRef: display.displayRef,
+        kind: 'vulnerability',
         profile,
         trigger,
         priority,
@@ -233,6 +250,12 @@ export class ScanCoordinator {
     }
   }
 
+  private contentScanners(): ContentScanners | null {
+    const settings = this.getSettings();
+    if (!settings.misconfigScanEnabled && !settings.secretScanEnabled) return null;
+    return { misconfig: settings.misconfigScanEnabled, secret: settings.secretScanEnabled };
+  }
+
   private async scanOnEnvironment(
     scan: ScanRecord,
     environment: EnvironmentRecord,
@@ -273,15 +296,25 @@ export class ScanCoordinator {
       maxOutputBytes: this.config.maxOutputBytes,
       maxTimeoutMs: this.config.scanTimeoutMs,
     });
+    const contentScanners = scan.kind === 'content' ? this.contentScanners() : null;
+    if (scan.kind === 'content' && !contentScanners) {
+      throw new ScanExecutionError('content_disabled', 'Content scanning was disabled in Settings before the scan started');
+    }
     return adapter.run({
       archivePath,
       workDir,
       profile: scan.profile,
+      mode: scan.kind === 'content' ? 'content' : 'vulnerability',
+      contentScanners: contentScanners ?? undefined,
       signal,
     });
   }
 
   private complete(scan: ScanRecord, environment: EnvironmentRecord, result: ScannerRunResult): void {
+    if (scan.kind === 'content') {
+      this.completeContent(scan, environment, result);
+      return;
+    }
     const now = nowIso();
     const outcome: ApplyScanOutcome = this.db.transaction(() => {
       const applied = applyScanFindings(this.db, {
@@ -326,13 +359,49 @@ export class ScanCoordinator {
     }
   }
 
+  private completeContent(scan: ScanRecord, environment: EnvironmentRecord, result: ScannerRunResult): void {
+    const now = nowIso();
+    const outcome = this.db.transaction(() => {
+      const applied = applyContentFindings(this.db, {
+        imageId: scan.imageId,
+        scanId: scan.id,
+        findings: result.contentFindings,
+        now,
+      });
+      markScanSuccess(this.db, scan.id, {
+        environmentId: environment.id,
+        durationMs: result.durationMs,
+        scannerVersion: result.scannerVersion,
+        dbVersion: null,
+        dbUpdatedAt: null,
+        counts: applied.counts,
+        exitCode: result.exitCode,
+        warnings: result.warnings,
+      });
+      return applied;
+    });
+    this.log.info(
+      {
+        scanId: scan.id,
+        imageId: scan.imageId,
+        environment: environment.name,
+        kind: scan.kind,
+        findings: result.contentFindings.length,
+        appeared: outcome.appeared.length,
+        resolved: outcome.resolved.length,
+        durationMs: result.durationMs,
+      },
+      'content scan completed',
+    );
+  }
+
   private fail(scan: ScanRecord, error: unknown): void {
     const info = describeFailure(error);
     const settings = this.getSettings();
 
     if (info.code === 'cancelled' && !this.stopped) {
       markScanCancelled(this.db, scan.id, 'Scan cancelled by user');
-      this.updateImageScanStatus(scan, 'cancelled');
+      if (scan.kind === 'vulnerability') this.updateImageScanStatus(scan, 'cancelled');
       return;
     }
 
@@ -345,7 +414,7 @@ export class ScanCoordinator {
       exitCode: info.exitCode,
       retryAt,
     });
-    this.updateImageScanStatus(scan, 'failed');
+    if (scan.kind === 'vulnerability') this.updateImageScanStatus(scan, 'failed');
 
     if (retryAt) {
       this.log.warn(
@@ -356,6 +425,7 @@ export class ScanCoordinator {
     }
 
     this.log.error({ scanId: scan.id, imageId: scan.imageId, code, error: info.message }, 'scan failed permanently');
+    if (scan.kind === 'content') return;
     try {
       this.alerts.evaluateScanFailure(scan, code, info.message);
     } catch (alertError) {

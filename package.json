@@ -17,7 +17,9 @@
     "test:unit": "node --test \"test/unit/*.test.ts\"",
     "test:integration": "node --test --test-concurrency=1 \"test/integration/*.test.ts\"",
     "test:ui": "playwright test",
-    "backup": "node scripts/backup.ts"
+    "backup": "node scripts/backup.ts",
+    "native": "node scripts/native.ts",
+    "native:setup": "node scripts/native-setup.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

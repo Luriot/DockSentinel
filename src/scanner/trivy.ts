@@ -1,10 +1,16 @@
 import { readFile, stat, unlink } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { ProcessError, runProcess } from './process.ts';
-import { InvalidReportError, parseTrivyReport } from './normalize.ts';
+import { InvalidReportError, parseTrivyContentReport, parseTrivyReport } from './normalize.ts';
 import type { NormalizedFinding } from '../domain/findings.ts';
+import type { NormalizedContentFinding } from '../domain/content.ts';
 
 export type ScanProfile = 'quick' | 'standard';
+export type ScanMode = 'vulnerability' | 'content';
+export interface ContentScanners {
+  misconfig: boolean;
+  secret: boolean;
+}
 
 export type ScannerErrorCode =
   | 'scanner_unavailable'
@@ -35,11 +41,16 @@ export interface ScannerRunInput {
   /** Per-scan scratch directory; the report is written and removed here. */
   workDir: string;
   profile: ScanProfile;
+  /** Defaults to vulnerability scanning for backward compatibility. */
+  mode?: ScanMode;
+  /** Required when mode is content; at least one entry must be true. */
+  contentScanners?: ContentScanners;
   signal?: AbortSignal;
 }
 
 export interface ScannerRunResult {
   findings: NormalizedFinding[];
+  contentFindings: NormalizedContentFinding[];
   scannerVersion: string | null;
   dbVersion: string | null;
   dbUpdatedAt: string | null;
@@ -122,6 +133,7 @@ export class TrivyAdapter implements ScannerAdapter {
   }
 
   async run(input: ScannerRunInput): Promise<ScannerRunResult> {
+    if (input.mode === 'content') return this.runContent(input);
     const started = Date.now();
     const profile = PROFILES[input.profile];
     const timeoutMs = Math.min(profile.timeoutMs, this.options.maxTimeoutMs);
@@ -149,23 +161,7 @@ export class TrivyAdapter implements ScannerAdapter {
       }
     }
 
-    let raw: string;
-    try {
-      const info = await stat(reportPath);
-      if (info.size === 0) throw new ScannerError('invalid_output', 'Scanner produced an empty report');
-      if (info.size > this.options.maxOutputBytes) {
-        throw new ScannerError(
-          'output_too_large',
-          `Scanner report is ${Math.round(info.size / (1024 * 1024))} MiB, above the configured limit`,
-        );
-      }
-      raw = await readFile(reportPath, 'utf8');
-    } catch (error) {
-      if (error instanceof ScannerError) throw error;
-      throw new ScannerError('invalid_output', 'Scanner did not produce a readable report');
-    } finally {
-      await unlink(reportPath).catch(() => undefined);
-    }
+    const raw = await this.readReport(reportPath);
 
     let parsed;
     try {
@@ -215,6 +211,7 @@ export class TrivyAdapter implements ScannerAdapter {
 
     return {
       findings,
+      contentFindings: [],
       scannerVersion: version.version,
       dbVersion: version.dbSchema,
       dbUpdatedAt: version.dbUpdatedAt,
@@ -224,6 +221,106 @@ export class TrivyAdapter implements ScannerAdapter {
       durationMs: Date.now() - started,
       stderrTail: result.stderr.slice(-1500),
     };
+  }
+
+  private async runContent(input: ScannerRunInput): Promise<ScannerRunResult> {
+    const started = Date.now();
+    const scanners = input.contentScanners;
+    if (!scanners || (!scanners.misconfig && !scanners.secret)) {
+      throw new ScannerError('scanner_failed', 'No content scanners were selected');
+    }
+    const selected: string[] = [];
+    if (scanners.misconfig) selected.push('misconfig');
+    if (scanners.secret) selected.push('secret');
+    const timeoutMs = Math.min(10 * 60_000, this.options.maxTimeoutMs);
+    const reportName = 'report-content.json';
+    const reportPath = join(input.workDir, reportName);
+
+    let result;
+    try {
+      result = await this.invokeContentScanner(input, selected, timeoutMs, reportName);
+    } catch (error) {
+      throw this.mapContentError(error);
+    }
+
+    const raw = await this.readReport(reportPath);
+    let parsed;
+    try {
+      parsed = parseTrivyContentReport(raw, { path: input.archivePath, base: basename(input.archivePath) });
+    } catch (error) {
+      if (error instanceof InvalidReportError) {
+        throw new ScannerError('invalid_output', `Scanner report could not be trusted: ${error.message}`);
+      }
+      throw error;
+    }
+    const version = await this.readVersion();
+    return {
+      findings: [],
+      contentFindings: parsed.findings,
+      scannerVersion: version.version,
+      dbVersion: null,
+      dbUpdatedAt: null,
+      os: null,
+      warnings: parsed.warnings,
+      exitCode: result.exitCode,
+      durationMs: Date.now() - started,
+      // Secret scanning output must never be copied into logs or API errors.
+      stderrTail: '',
+    };
+  }
+
+  private async readReport(reportPath: string): Promise<string> {
+    try {
+      const info = await stat(reportPath);
+      if (info.size === 0) throw new ScannerError('invalid_output', 'Scanner produced an empty report');
+      if (info.size > this.options.maxOutputBytes) {
+        throw new ScannerError(
+          'output_too_large',
+          `Scanner report is ${Math.round(info.size / (1024 * 1024))} MiB, above the configured limit`,
+        );
+      }
+      return await readFile(reportPath, 'utf8');
+    } catch (error) {
+      if (error instanceof ScannerError) throw error;
+      throw new ScannerError('invalid_output', 'Scanner did not produce a readable report');
+    } finally {
+      await unlink(reportPath).catch(() => undefined);
+    }
+  }
+
+  private async invokeContentScanner(
+    input: ScannerRunInput,
+    scanners: string[],
+    timeoutMs: number,
+    reportName: string,
+  ) {
+    const args = [
+      'image',
+      '--input',
+      basename(input.archivePath),
+      '--format',
+      'json',
+      '--output',
+      reportName,
+      '--quiet',
+      '--scanners',
+      scanners.join(','),
+      '--image-config-scanners',
+      scanners.join(','),
+      '--cache-dir',
+      this.options.cacheDir,
+      '--timeout',
+      `${Math.ceil(timeoutMs / 1000) + 30}s`,
+    ];
+    return runProcess({
+      command: this.options.bin,
+      args,
+      cwd: input.workDir,
+      env: scannerEnv(this.options.cacheDir),
+      timeoutMs,
+      signal: input.signal,
+      maxStderrBytes: 64 * 1024,
+    });
   }
 
   private async invokeScanner(
@@ -294,6 +391,29 @@ export class TrivyAdapter implements ScannerAdapter {
     }
   }
 
+  private mapContentError(error: unknown): ScannerError {
+    if (error instanceof ScannerError) {
+      return new ScannerError(error.code, contentErrorMessage(error.code, error.exitCode), error.exitCode);
+    }
+    if (error instanceof InvalidReportError) {
+      return new ScannerError('invalid_output', 'Scanner report could not be trusted');
+    }
+    if (error instanceof ProcessError) {
+      const code =
+        error.code === 'spawn_failed'
+          ? 'scanner_unavailable'
+          : error.code === 'timeout'
+            ? 'timeout'
+            : error.code === 'aborted'
+              ? 'cancelled'
+              : error.code === 'output_too_large'
+                ? 'output_too_large'
+                : 'scanner_failed';
+      return new ScannerError(code, contentErrorMessage(code, error.exitCode), error.exitCode);
+    }
+    return new ScannerError('scanner_failed', 'Trivy content scan failed');
+  }
+
   private mapError(error: unknown): ScannerError {
     if (error instanceof ScannerError) return error;
     if (error instanceof InvalidReportError) return new ScannerError('invalid_output', error.message);
@@ -327,6 +447,23 @@ export class TrivyAdapter implements ScannerAdapter {
       }
     }
     return new ScannerError('scanner_failed', error instanceof Error ? error.message : 'Scanner failed');
+  }
+}
+
+function contentErrorMessage(code: ScannerErrorCode, exitCode: number | null): string {
+  switch (code) {
+    case 'scanner_unavailable':
+      return 'Trivy is not available or could not be started.';
+    case 'timeout':
+      return 'Trivy content scan timed out.';
+    case 'cancelled':
+      return 'Scan cancelled';
+    case 'output_too_large':
+      return 'Scanner report exceeded the configured size limit.';
+    case 'invalid_output':
+      return 'Scanner report could not be trusted.';
+    default:
+      return `Trivy content scan failed (exit code ${exitCode ?? 'unknown'}). Check network access for the checks bundle and the scanner log.`;
   }
 }
 

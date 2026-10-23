@@ -2,8 +2,8 @@
 
 DockSentinel is a lightweight, self-hosted **Docker vulnerability monitoring and alerting** service.
 It discovers containers and images across one or more Docker endpoints, scans images with
-[Trivy](https://trivy.dev/), keeps a history of findings, prioritises what is actually urgent, and
-sends deduplicated notifications through [ntfy](https://ntfy.sh/).
+[Trivy](https://trivy.dev/), keeps a history of findings, prioritises what is urgent, and sends
+deduplicated notifications through [ntfy](https://ntfy.sh/).
 
 It is an orchestration and correlation layer. It does **not** implement a vulnerability scanner,
 vulnerability database, package parser or runtime intrusion detection.
@@ -18,159 +18,170 @@ Docker endpoints ──► discovery ──► image scan (Trivy) ──► norm
 
 ## What it does
 
-- Multiple Docker environments (local Unix socket, TCP, or TLS with client certificates), each with
-  independent connection health, inventory and scan policy. One unreachable host never blocks the
-  others.
+- Multiple Docker environments (local Unix socket, Windows named pipe, TCP, or TLS with client
+  certificates), each with independent health, inventory and scan policy.
 - Container and image discovery with deduplication by immutable image ID. Findings map back to every
   container, environment and host that uses the image.
-- Trivy integration with structured JSON output, two genuinely different profiles, scanner/DB version
-  capture, update fallbacks, timeouts, output caps and safe process execution.
+- Trivy integration with structured JSON output, quick and standard vulnerability profiles, scanner/DB
+  version capture, update fallbacks, timeouts, output caps and safe process execution.
 - Finding lifecycle: open, resolved, reappeared, severity changed. Failed scans never resolve findings
   and never masquerade as clean results.
-- Prioritisation from severity, CISA KEV membership (optional feed), fix availability, running state,
-  network exposure metadata and Docker labels. Transparent, rule-based tiers — not a proprietary risk
-  score.
+- Prioritisation from severity, CISA KEV membership, fix availability, running state, network exposure
+  metadata and Docker labels. Transparent, rule-based tiers — not a proprietary risk score.
 - ntfy delivery with per-image grouping, deduplication keys, retries with backoff, a test action and a
   complete delivery history.
-- Dashboard for the urgent-vulnerability workflow: overview, environments, containers, images,
-  vulnerabilities, scan activity, notifications and settings.
+- Optional, opt-in Trivy **image configuration/content** checks for Dockerfile misconfigurations and
+  embedded secrets. Secret matches are stored as metadata only; values are never persisted or displayed.
 - SQLite persistence with versioned migrations, retention policies, health checks, graceful shutdown
   and backup/reset scripts.
 
 ## What it does not do
 
 - No runtime intrusion detection, WAF, malware scanning or live-compromise detection.
-- No guaranteed Internet exposure detection. Published Docker ports are evidence, not proof: firewalls,
-  reverse proxies, NAT and cloud security groups sit in between. Exposure is reported as *confirmed by
-  an explicit label*, *potentially exposed from Docker metadata*, *no published ports* or *unknown*.
-- No misconfiguration, secret or license scanning in this release. Image vulnerability scanning only.
-- No container remediation. DockSentinel never starts, stops, restarts or deletes containers.
-- No host vulnerability scanning, kernel scanning or SBOM management.
+- No guaranteed Internet exposure detection. Published Docker ports are evidence, not proof.
+- No host, kernel or Docker-daemon audit. Misconfiguration and secret scans only inspect the **image**
+  (image config and files inside the image), not the running container or host.
+- No automatic remediation. DockSentinel never starts, stops, restarts or deletes containers.
+- No SBOM management, VEX or license compliance platform.
 
-## Quick start (Docker Compose)
+## Install with Docker Compose
 
-Requirements: Docker Engine with the Compose plugin, outbound HTTPS for Trivy database and KEV
-updates, and a writable appdata directory. Expect roughly 1–2 GiB of Trivy cache after standard scans
-(the Java index is large); budget disk accordingly.
+Requirements: Docker Engine with the Compose plugin, outbound HTTPS for Trivy and KEV updates, and a
+writable data directory. The Trivy cache can grow to roughly 1–2 GiB after standard scans.
 
 ```bash
 cp .env.example .env
-# Optional: set SETUP_TOKEN in .env, otherwise a random token is printed in the logs.
+# Optional: set SETUP_TOKEN in .env; otherwise a random token is printed once in the logs.
 docker compose up -d --build
 docker compose logs docksentinel | grep -i "setup token"
 ```
 
 Open `http://<host>:8080`, enter the setup token, create the administrator account, then add a Docker
-environment (start with the local socket `/var/run/docker.sock`). Discovery and the first scans are
-queued automatically.
+environment. Discovery and the first vulnerability scans are queued automatically.
 
-The Compose file builds locally by default. A public multi-arch image is also published at
-`ghcr.io/luriot/docksentinel` (`latest`, `main`, `sha-<commit>`); pull it without authentication with
-`docker pull ghcr.io/luriot/docksentinel:latest`.
+A public multi-arch image is also published at `ghcr.io/luriot/docksentinel`:
+
+```bash
+docker pull ghcr.io/luriot/docksentinel:latest
+```
 
 The socket is mapped read-only, but Docker access is still **effectively host-root**. Read the
 [Docker security notes](docs/SECURITY.md#docker-socket-access) before deploying on a host that matters.
-If discovery fails with permission denied, add the socket's group ID (`stat -c '%g' /var/run/docker.sock`)
-to `DOCKER_GID` before starting. Docker Desktop (Windows/macOS) presents the Linux socket as
-`root:root` mode `0660`, so local testing needs `DOCKER_GID=0` or `--group-add 0`.
+If discovery fails with permission denied, set `DOCKER_GID` to the socket's group
+(`stat -c '%g' /var/run/docker.sock`). Docker Desktop presents the Linux socket as `root:root` mode
+`0660`, so container smoke tests need `PGID=0` or `--group-add 0`.
 
-See [Deployment](docs/DEPLOYMENT.md) for reverse proxies, remote TLS endpoints, upgrades, backups and
-troubleshooting, and [Unraid](docs/UNRAID.md) for the Unraid template.
+## Run natively (without the DockSentinel container)
 
-## Local development
+DockSentinel itself can run directly with Node.js. This does **not** remove the need for a Docker
+endpoint: use a local Docker Engine, a Windows Docker Desktop named pipe, or a remote TCP/TLS endpoint.
 
-Node.js **>= 24.12** is required. Node 24 runs the TypeScript backend directly (type stripping) and
-provides the built-in SQLite driver; there is no ORM and no separate backend build step. A local
-`trivy` binary is needed only to exercise real scans.
+**Prerequisite:** Node.js **24.12 or newer** (the app uses native TypeScript execution and `node:sqlite`).
+The installer downloads the matching official Trivy release and verifies its SHA-256 checksum.
+
+```bash
+npm ci
+npm run native:setup          # builds the UI, installs verified Trivy into the native data folder
+npm run native                # http://127.0.0.1:8080
+# optional: npm run native -- --open
+```
+
+Native data defaults to a per-user application folder:
+
+| Platform | Data folder |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\DockSentinel` |
+| macOS | `~/Library/Application Support/DockSentinel` |
+| Linux | `$XDG_DATA_HOME/docksentinel` or `~/.local/share/docksentinel` |
+
+The database, encryption key, Trivy cache, scratch space and managed Trivy binary live there. Override
+with `DATA_DIR`. The launcher binds to `127.0.0.1` by default; set `HOST`/`PORT` deliberately to expose it.
+
+Add a Docker environment after setup:
+
+- **Windows Docker Desktop:** kind `unix`, address `//./pipe/docker_engine`.
+- **Linux/macOS local Docker:** kind `unix`, address `/var/run/docker.sock`.
+- **Remote:** kind `tcp` or `tls`, address `host:2376`.
+
+If the app starts without a scanner, it reports that clearly and scans fail rather than appearing clean.
+Re-run `npm run native:setup -- --force` to repair or update the managed Trivy copy. A self-contained
+single executable is not provided: Node's SEA feature is still active development, and the Docker image
+already provides a dependency-free deployment. On unsupported platforms, install Trivy manually and set
+`TRIVY_BIN`.
+
+## First-run and operations
+
+- The setup token is printed once in the logs (or supplied with `SETUP_TOKEN`).
+- Native mode: `DATA_DIR` persists settings, credentials, history and the scanner cache across restarts.
+- Docker mode: persist `/data` as a volume; back up the database and `secret.key` together.
+- Graceful shutdown handles `SIGINT`/`SIGTERM`; interrupted scans are recovered on the next start.
+- Port conflicts, a missing UI build, an unwritable data folder and missing dependencies produce
+  actionable startup errors.
+
+## Content and configuration scans (opt-in)
+
+Enable **misconfiguration scans** and/or **secret scans** in Settings, then use **Content scan** in an
+image's drawer. These are separate from vulnerability scans and do not feed vulnerability counts, alerts
+or image scan status.
+
+- Misconfigurations use Trivy's Dockerfile-converted image config and any IaC files inside the image.
+  This is not a host or daemon audit.
+- Secret scans inspect image files and image config. DockSentinel stores only rule, location, category
+  and severity; the matched value is never stored, returned, logged or notified. False positives are
+  possible, and a clean secret scan is not proof that an image contains no credentials.
+- Content findings have their own lifecycle and page. Failed content scans never resolve prior findings.
+
+## Development
 
 ```bash
 npm install
-npm run dev            # API on http://127.0.0.1:8080 with DATA_DIR=./data
-npm run dev:web        # Vite dev server on http://127.0.0.1:5173 (proxies /api)
+npm run dev            # backend on :8080
+npm run dev:web        # Vite on :5173 with /api proxy
 ```
 
-Build and run like production:
+Press **Ctrl + Shift + B** in VS Code to start both as background tasks (`.vscode/tasks.json`). The
+compound task stops both processes together.
 
 ```bash
-npm run build          # typecheck + production SPA build
-npm start
-```
-
-Tests:
-
-```bash
-npm test               # unit + integration (uses real Trivy when available and cached DB present)
 npm run typecheck
+npm test               # unit + integration; real Trivy tests skip if unavailable
 npx playwright install chromium
-npm run test:ui        # starts seeded instances and drives Chromium
+npm run test:ui
+npm run build
+npm start              # production UI + API on :8080
 ```
-
-Integration tests that need a real scanner skip themselves when Trivy or its vulnerability database is
-not available on the machine. A plain Docker daemon is **not** required by the test suite: discovery
-and export are exercised against a spec-shaped fake Docker API, and Trivy scans a deterministic synthetic
-image archive.
 
 ## Configuration
 
-All configuration is environment variables (see [`.env.example`](.env.example)); operational policy
-(intervals, thresholds, notification settings, retention) is configured in the UI and stored in SQLite.
+Environment variables are documented in [`.env.example`](.env.example). Operational policy is managed in
+the UI and stored in SQLite.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DATA_DIR` | `./data` | Database, secret key, Trivy cache, scan scratch space |
-| `HOST` / `PORT` | `0.0.0.0` / `8080` | HTTP listener |
+| `DATA_DIR` | `./data` (`npm start`); per-user folder (native launcher) | Database, secret key, cache, scratch |
+| `HOST` / `PORT` | `0.0.0.0` / `8080` (`127.0.0.1` for native launcher) | HTTP listener |
 | `LOG_LEVEL` | `info` | Structured JSON logs |
-| `TRUST_PROXY` | `false` | Honour `X-Forwarded-*` from a trusted reverse proxy |
-| `COOKIE_SECURE` | `auto` | `always` / `never` / `auto` for the session cookie |
-| `SETUP_TOKEN` | random, logged once | First-run administrator setup token |
-| `DOCKSENTINEL_SECRET_KEY` | `DATA_DIR/secret.key` | 32-byte key for encrypted TLS material and notification credentials |
-| `TRIVY_BIN` / `TRIVY_CACHE_DIR` | `trivy` / `DATA_DIR/trivy-cache` | Scanner binary and database cache |
-| `SCAN_TIMEOUT_MS` | `900000` (15 min) | Hard scan timeout |
-| `SCAN_MAX_OUTPUT_BYTES` | `96 MiB` | Maximum scanner report size |
-| `MAX_IMAGE_EXPORT_BYTES` | `8 GiB` | Maximum image archive streamed from Docker |
-| `IMAGE_EXPORT_TIMEOUT_MS` | `600000` (10 min) | Image export timeout |
-| `SCAN_CONCURRENCY` | `2` | Upper bound on concurrent scans |
-| `KEV_URL` | CISA feed | Known-exploited catalogue source |
+| `TRUST_PROXY` | `false` | Honour `X-Forwarded-*` from a trusted proxy |
+| `COOKIE_SECURE` | `auto` | `always` / `never` / `auto` |
+| `SETUP_TOKEN` | random, logged once | First-run administrator token |
+| `DOCKSENTINEL_SECRET_KEY` | `DATA_DIR/secret.key` | 32-byte encryption key |
+| `TRIVY_BIN` / `TRIVY_CACHE_DIR` | `trivy` / `DATA_DIR/trivy-cache` | Scanner and cache |
+| `SCAN_TIMEOUT_MS` | `900000` | Hard scan timeout |
+| `SCAN_MAX_OUTPUT_BYTES` | `96 MiB` | Maximum report size |
+| `MAX_IMAGE_EXPORT_BYTES` | `8 GiB` | Maximum image archive size |
+| `SCAN_CONCURRENCY` | `2` | Concurrent scan ceiling |
 
-Container permissions: `PUID`/`PGID` control the runtime user (default `10001`), and `DOCKER_GID`
-(or `--group-add` on Unraid) grants access to the Docker socket.
+Container permissions: `PUID`/`PGID` control the runtime user; `DOCKER_GID` grants socket access.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — modules, data model, scan flow, prioritisation, trade-offs.
 - [Security](docs/SECURITY.md) — threat model, controls, Docker access, known gaps, hardening.
-- [Scanner coverage](docs/SCANNERS.md) — what Trivy detects here, profiles, failure semantics, offline use.
-- [Deployment](docs/DEPLOYMENT.md) — Compose, TLS, upgrades, backup/restore, troubleshooting.
+- [Scanner coverage](docs/SCANNERS.md) — vulnerability, misconfiguration and secret coverage, limits.
+- [Deployment](docs/DEPLOYMENT.md) — Docker, native mode, TLS, upgrades, backup/restore, troubleshooting.
 - [Unraid](docs/UNRAID.md) — template, socket permissions, updates.
 - [HTTP API](docs/API.md) — authentication and endpoints.
-- [Handoff notes](HANDOFF.md) — implementation status, executed test results and remaining actions.
-
-## Verification status
-
-Last verified on 2026-10-22 with Node.js 26.4.0 (Windows), Docker Desktop 4.96.2 / Engine 29.9.2,
-Trivy 0.75.0 and Chromium 156:
-
-- `npm test` — **63 tests passing** (unit + integration), including a rescan-stability regression test.
-- Real Trivy end-to-end test — synthetic Debian 11 image produced **61 findings** (3 critical, 10 high,
-  26 medium, 20 low, 2 unknown); normalisation, priority tiers, failure preservation and cleanup asserted.
-- `npm run typecheck` — backend and web typechecks pass.
-- Production SPA build — JS ≈ 355 kB (≈ 98 kB gzip), CSS ≈ 25 kB (≈ 6 kB gzip).
-- `npm run test:ui` — **11 Playwright tests passing** (setup, login, overview, filters, drawers,
-  environment validation, scan failure states, notification validation, settings persistence,
-  mobile layout, keyboard basics).
-- **Production image** — built with `docker buildx build --platform linux/amd64 --load`, Dockerfile
-  check reported no warnings, container starts healthy and runs the app as non-root UID 10001.
-- **Real Docker Desktop validation** — discovered the running containers, scanned
-  `nginx:1.19-alpine` (**96 findings: 9 critical, 52 high, 29 medium, 6 low; all fixable**) in 14.4 s
-  on first scan and 0.19 s with a warm cache, delivered the grouped ntfy alert, and verified stable
-  re-scanning (no resolved/recreated findings), restart persistence, graceful shutdown and interrupted
-  scan requeue. Screenshots: `test-results/screens/real-overview.png`.
-- **Published image** — `ghcr.io/luriot/docksentinel` (`latest`, `main`, `sha-4415f96`), manifest
-  `sha256:b3d39f50…`, built for **linux/amd64 + linux/arm64**. Anonymous pull, image labels and the
-  signed GitHub attestation (`gh attestation verify`) were verified locally. BuildKit attached SBOM and
-  provenance attestations; the GitHub artifact attestation was signed with Sigstore and uploaded to Rekor.
-- **Not yet verified:** Unraid or any remote Docker host, mutual-TLS endpoints, and running the arm64
-  image on real arm64 hardware.
+- [Implementation handoff](HANDOFF.md) — maintainer notes, executed verification and remaining actions.
 
 ## License
 

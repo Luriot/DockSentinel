@@ -1,5 +1,10 @@
 import { isValidDateString, parseCvss, validateReference } from './validate.ts';
 import { normalizeSeverity, type Severity } from '../domain/severity.ts';
+import {
+  contentIdentity,
+  type ContentScope,
+  type NormalizedContentFinding,
+} from '../domain/content.ts';
 
 export class InvalidReportError extends Error {
   constructor(message: string) {
@@ -32,6 +37,11 @@ export interface ParsedReport {
   os: { family: string | null; version: string | null } | null;
   imageId: string | null;
   artifactName: string | null;
+  warnings: string[];
+}
+
+export interface ParsedContentReport {
+  findings: NormalizedContentFinding[];
   warnings: string[];
 }
 
@@ -177,4 +187,172 @@ export function parseTrivyReport(rawText: string): ParsedReport {
     artifactName,
     warnings,
   };
+}
+
+
+function lineNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 10_000_000 ? value : null;
+}
+
+function contentTarget(
+  raw: string,
+  archive: { path: string; base: string },
+): { scope: ContentScope; target: string } {
+  let relative = raw;
+  if (relative === archive.path) relative = archive.base;
+  else if (relative.startsWith(`${archive.path} `)) relative = `${archive.base}${relative.slice(archive.path.length)}`;
+  else if (relative.startsWith(`${archive.path}/`)) relative = relative.slice(archive.path.length + 1);
+  if (relative === archive.base || relative === '' || relative === 'image config') {
+    return { scope: 'image-config', target: 'image config' };
+  }
+  const target = relative.replace(/^\.?\//, '').slice(0, 500);
+  return { scope: 'image', target: target || 'image' };
+}
+
+function severityOf(value: unknown): Severity {
+  return normalizeSeverity(value);
+}
+
+/**
+ * Parses only the metadata of Trivy misconfiguration and secret results. The raw `Match`, `Code`
+ * and layer contents are deliberately never copied into the returned structure: secrets must not
+ * be persisted, logged, shown in the API, or included in notifications.
+ */
+export function parseTrivyContentReport(
+  rawText: string,
+  archive: { path: string; base: string },
+): ParsedContentReport {
+  let root: unknown;
+  try {
+    root = JSON.parse(rawText);
+  } catch {
+    throw new InvalidReportError('Scanner output is not valid JSON');
+  }
+  if (!root || typeof root !== 'object' || Array.isArray(root)) {
+    throw new InvalidReportError('Scanner output is not a JSON object');
+  }
+  const report = root as Record<string, unknown>;
+  if (typeof report.SchemaVersion !== 'number' && text(report.ArtifactName, 500) === null) {
+    throw new InvalidReportError('Scanner output does not look like a Trivy report');
+  }
+
+  const warnings: string[] = [];
+  const findings = new Map<string, NormalizedContentFinding>();
+  let malformedEntries = 0;
+  let validResults = 0;
+  const results = report.Results;
+
+  if (results !== undefined && results !== null) {
+    if (!Array.isArray(results)) throw new InvalidReportError('Scanner report Results is not an array');
+    for (const result of results) {
+      if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        malformedEntries += 1;
+        continue;
+      }
+      const entry = result as Record<string, unknown>;
+      const rawTarget = text(entry.Target, 1000);
+      if (!rawTarget) {
+        malformedEntries += 1;
+        continue;
+      }
+      validResults += 1;
+      const location = contentTarget(rawTarget, archive);
+
+      const misconfigurations = entry.Misconfigurations;
+      if (misconfigurations !== undefined && misconfigurations !== null) {
+        if (!Array.isArray(misconfigurations)) {
+          malformedEntries += 1;
+        } else {
+          for (const item of misconfigurations) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              malformedEntries += 1;
+              continue;
+            }
+            const record = item as Record<string, unknown>;
+            const ruleId = text(record.ID, 100);
+            if (!ruleId) {
+              malformedEntries += 1;
+              continue;
+            }
+            const cause = record.CauseMetadata;
+            const causeRecord =
+              cause && typeof cause === 'object' && !Array.isArray(cause) ? (cause as Record<string, unknown>) : null;
+            const finding: NormalizedContentFinding = {
+              kind: 'misconfiguration',
+              scope: location.scope,
+              ruleId,
+              category: text(record.Type, 120),
+              severity: severityOf(record.Severity),
+              title: text(record.Title, 500) ?? ruleId,
+              target: location.target,
+              message: text(record.Message, 1000),
+              resolution: text(record.Resolution, 1000),
+              primaryUrl: validateReference(record.PrimaryURL),
+              startLine: lineNumber(causeRecord?.StartLine),
+              endLine: lineNumber(causeRecord?.EndLine),
+            };
+            keepContentFinding(findings, finding);
+          }
+        }
+      }
+
+      const secrets = entry.Secrets;
+      if (secrets !== undefined && secrets !== null) {
+        if (!Array.isArray(secrets)) {
+          malformedEntries += 1;
+        } else {
+          for (const item of secrets) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              malformedEntries += 1;
+              continue;
+            }
+            const record = item as Record<string, unknown>;
+            const ruleId = text(record.RuleID, 100);
+            if (!ruleId) {
+              malformedEntries += 1;
+              continue;
+            }
+            const finding: NormalizedContentFinding = {
+              kind: 'secret',
+              scope: location.scope,
+              ruleId,
+              category: text(record.Category, 120),
+              severity: severityOf(record.Severity),
+              title: text(record.Title, 500) ?? ruleId,
+              target: location.target,
+              message: null,
+              resolution: null,
+              primaryUrl: null,
+              startLine: lineNumber(record.StartLine),
+              endLine: lineNumber(record.EndLine),
+            };
+            keepContentFinding(findings, finding);
+          }
+        }
+      }
+    }
+  }
+
+  if (malformedEntries > 0) {
+    warnings.push(
+      `${malformedEntries} malformed scanner ${malformedEntries === 1 ? 'entry was' : 'entries were'} ignored`,
+    );
+  }
+  if (results !== undefined && results !== null && Array.isArray(results) && results.length > 0 && validResults === 0) {
+    throw new InvalidReportError('Scanner report contained no usable results');
+  }
+  if (findings.size === 0 && malformedEntries > 0) {
+    throw new InvalidReportError('Scanner report was malformed and could not be used');
+  }
+  return { findings: [...findings.values()], warnings };
+}
+
+function keepContentFinding(map: Map<string, NormalizedContentFinding>, finding: NormalizedContentFinding): void {
+  const key = contentIdentity(finding);
+  const existing = map.get(key);
+  if (!existing || severityRank(finding.severity) > severityRank(existing.severity)) map.set(key, finding);
+}
+
+function severityRank(severity: Severity): number {
+  return severity === 'CRITICAL' ? 4 : severity === 'HIGH' ? 3 : severity === 'MEDIUM' ? 2 : severity === 'LOW' ? 1 : 0;
 }

@@ -28,6 +28,8 @@ export interface FakeDockerOptions {
   archives?: Map<string, Buffer>;
   /** Force specific endpoints to fail, keyed by path suffix (e.g. "/images/json"). */
   failures?: Map<string, { status: number; body?: string }>;
+  /** Bind address; use 0.0.0.0 for a container/host smoke test. Defaults to loopback. */
+  host?: string;
 }
 
 export interface FakeDocker {
@@ -133,14 +135,14 @@ export async function startFakeDocker(options: FakeDockerOptions = {}): Promise<
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve());
+    server.listen(0, options.host ?? '127.0.0.1', () => resolve());
   });
   const address = server.address() as AddressInfo;
 
   return {
-    host: '127.0.0.1',
+    host: options.host ?? '127.0.0.1',
     port: address.port,
-    url: `http://127.0.0.1:${address.port}`,
+    url: `http://${options.host === '0.0.0.0' ? '127.0.0.1' : (options.host ?? '127.0.0.1')}:${address.port}`,
     requests,
     setFailure(pathSuffix, failure) {
       if (failure) failures.set(pathSuffix, failure);
