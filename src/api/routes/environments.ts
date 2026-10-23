@@ -23,10 +23,10 @@ const ENV_SELECT = `
          (SELECT COUNT(*) FROM containers c WHERE c.environment_id = e.id AND c.present = 1 AND c.state = 'running') AS running_containers,
          (SELECT COUNT(*) FROM image_locations l WHERE l.environment_id = e.id) AS images,
          (SELECT COUNT(DISTINCT f.id) FROM findings f
-            WHERE f.resolved_at IS NULL AND f.severity = 'CRITICAL'
+            WHERE f.resolved_at IS NULL AND f.triage_status NOT IN ('ignored','false_positive') AND f.severity = 'CRITICAL'
               AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = f.image_id AND c.environment_id = e.id AND c.present = 1)) AS critical,
          (SELECT COUNT(DISTINCT f.id) FROM findings f
-            WHERE f.resolved_at IS NULL AND f.severity = 'HIGH'
+            WHERE f.resolved_at IS NULL AND f.triage_status NOT IN ('ignored','false_positive') AND f.severity = 'HIGH'
               AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = f.image_id AND c.environment_id = e.id AND c.present = 1)) AS high
   FROM environments e`;
 

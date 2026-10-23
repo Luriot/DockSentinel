@@ -1,0 +1,46 @@
+name: Test
+
+# Main-branch pushes are tested through the publish workflow's `test` job, so they are excluded
+# here to avoid running the same suite twice. Pull requests and feature-branch pushes run directly.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Typecheck, backend tests, build and UI tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.12.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Backend tests
+        run: npm test
+
+      - name: Build production UI
+        run: npm run build
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: UI tests
+        run: npm run test:ui

@@ -7,6 +7,7 @@ import {
   type ScanRecord,
   type Severity,
   type SeverityCounts,
+  type TriageStatus,
 } from '../api.ts';
 import { useApi, useDebounced, navigate, useRoute } from '../hooks.ts';
 import {
@@ -80,12 +81,13 @@ export function Vulnerabilities() {
   const [state, setState] = useState<'open' | 'resolved' | 'all'>(
     (route.params.get('state') as 'open' | 'resolved' | 'all' | null) ?? 'open',
   );
+  const [includeSuppressed, setIncludeSuppressed] = useState(route.params.get('suppressed') === 'true');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state]);
+  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state, includeSuppressed]);
 
   const query = new URLSearchParams();
   if (debouncedSearch) query.set('q', debouncedSearch);
@@ -96,6 +98,7 @@ export function Vulnerabilities() {
   if (runningOnly) query.set('running', 'true');
   if (environmentId) query.set('envId', environmentId);
   if (state !== 'open') query.set('state', state);
+  if (includeSuppressed) query.set('includeSuppressed', 'true');
   query.set('page', String(page));
   query.set('pageSize', '25');
 
@@ -106,7 +109,7 @@ export function Vulnerabilities() {
     next.delete('pageSize');
     const text = next.toString();
     window.history.replaceState(null, '', `${window.location.pathname}${text ? `?${text}` : ''}`);
-  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state]);
+  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state, includeSuppressed]);
 
   const { data, error, loading, refresh } = useApi<FindingsResponse>(`/findings?${query.toString()}`, {
     intervalMs: 30_000,
@@ -118,6 +121,14 @@ export function Vulnerabilities() {
       current.includes(severity) ? current.filter((entry) => entry !== severity) : [...current, severity],
     );
   }, []);
+
+  function exportFindings(format: 'csv' | 'json'): void {
+    const params = new URLSearchParams(query);
+    params.delete('page');
+    params.delete('pageSize');
+    params.set('format', format);
+    window.location.href = `/api/findings/export?${params.toString()}`;
+  }
 
   async function scanImage(finding: FindingView, profile: 'quick' | 'standard'): Promise<void> {
     try {
@@ -136,6 +147,7 @@ export function Vulnerabilities() {
     fixableOnly ||
     runningOnly ||
     Boolean(environmentId) ||
+    includeSuppressed ||
     state !== 'open';
 
   return (
@@ -176,6 +188,15 @@ export function Vulnerabilities() {
           <button type="button" className="chip-toggle" aria-pressed={runningOnly} onClick={() => setRunningOnly((value) => !value)}>
             Running only
           </button>
+          <button
+            type="button"
+            className="chip-toggle"
+            aria-pressed={includeSuppressed}
+            onClick={() => setIncludeSuppressed((value) => !value)}
+            title="Show findings marked ignored or false positive"
+          >
+            Show ignored
+          </button>
           <select
             className="select"
             value={environmentId}
@@ -199,6 +220,12 @@ export function Vulnerabilities() {
             <option value="resolved">Resolved</option>
             <option value="all">All states</option>
           </select>
+          <button type="button" className="btn small ghost" onClick={() => exportFindings('csv')} aria-label="Export CSV">
+            Export CSV
+          </button>
+          <button type="button" className="btn small ghost" onClick={() => exportFindings('json')} aria-label="Export JSON">
+            Export JSON
+          </button>
           <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh">
             <IconRefresh width={14} height={14} />
           </button>
@@ -214,6 +241,7 @@ export function Vulnerabilities() {
                 setFixableOnly(false);
                 setRunningOnly(false);
                 setEnvironmentId('');
+                setIncludeSuppressed(false);
                 setState('open');
               }}
             >
@@ -275,6 +303,7 @@ export function Vulnerabilities() {
                     setFixableOnly(false);
                     setRunningOnly(false);
                     setEnvironmentId('');
+                    setIncludeSuppressed(false);
                     setState('open');
                   }}
                 >
@@ -352,6 +381,9 @@ export function Vulnerabilities() {
                           {finding.kev === 1 ? <KevBadge kev={1} /> : null}
                           {finding.fixedVersion ? <FixBadge fixedVersion={finding.fixedVersion} /> : null}
                           {finding.exposure ? <ExposureBadge state={finding.exposure} /> : null}
+                          {finding.triageStatus === 'acknowledged' ? <span className="badge neutral">Acknowledged</span> : null}
+                          {finding.triageStatus === 'ignored' ? <span className="badge warn">Ignored</span> : null}
+                          {finding.triageStatus === 'false_positive' ? <span className="badge warn">False positive</span> : null}
                           {finding.resolvedAt ? <span className="badge ok">Resolved</span> : null}
                         </div>
                       </td>
@@ -374,6 +406,8 @@ export function Vulnerabilities() {
           findingId={selected}
           onClose={() => setSelected(null)}
           onScan={(finding, profile) => void scanImage(finding, profile)}
+          onChanged={refresh}
+          onToast={toast}
         />
       ) : null}
     </div>
@@ -384,12 +418,48 @@ function FindingDrawer({
   findingId,
   onClose,
   onScan,
+  onChanged,
+  onToast,
 }: {
   findingId: number;
   onClose: () => void;
   onScan: (finding: FindingView, profile: 'quick' | 'standard') => void;
+  onChanged: () => void;
+  onToast: ReturnType<typeof useToast>;
 }) {
   const { data, error, loading, refresh } = useApi<FindingDetail>(`/findings/${findingId}`);
+  const [triageNote, setTriageNote] = useState('');
+  const [triageBusy, setTriageBusy] = useState(false);
+
+  useEffect(() => {
+    if (data) setTriageNote(data.finding.triageNote ?? '');
+  }, [data]);
+
+  async function triage(status: TriageStatus): Promise<void> {
+    setTriageBusy(true);
+    try {
+      await api.patch(`/findings/${findingId}/triage`, {
+        status,
+        note: triageNote.trim() || null,
+      });
+      onToast(
+        status === 'none'
+          ? 'Triage cleared'
+          : status === 'acknowledged'
+            ? 'Finding acknowledged'
+            : status === 'ignored'
+              ? 'Finding ignored and hidden from default views'
+              : 'Finding marked as a false positive',
+        'success',
+      );
+      refresh();
+      onChanged();
+    } catch (triageError) {
+      onToast(triageError instanceof Error ? triageError.message : 'Unable to update triage', 'error');
+    } finally {
+      setTriageBusy(false);
+    }
+  }
 
   return (
     <Drawer
@@ -521,6 +591,51 @@ function FindingDrawer({
                 ))}
               </div>
             )}
+          </section>
+
+          <section className="drawer-section">
+            <h3>Triage</h3>
+            <div className="pill-row" style={{ marginBottom: 8 }}>
+              {data.finding.triageStatus === 'none' ? (
+                <span className="badge neutral">Not triaged</span>
+              ) : (
+                <span className={`badge ${data.finding.triageStatus === 'acknowledged' ? 'neutral' : 'warn'}`}>
+                  {data.finding.triageStatus === 'acknowledged'
+                    ? 'Acknowledged'
+                    : data.finding.triageStatus === 'ignored'
+                      ? 'Ignored'
+                      : 'False positive'}
+                </span>
+              )}
+              {data.finding.triagedAt ? <span className="tiny dim">updated {relativeTime(data.finding.triagedAt)}</span> : null}
+            </div>
+            <textarea
+              className="input"
+              rows={2}
+              maxLength={500}
+              placeholder="Optional note (why is this acknowledged or ignored?)"
+              value={triageNote}
+              onChange={(event) => setTriageNote(event.target.value)}
+              aria-label="Triage note"
+            />
+            <div className="hstack" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="btn small ghost" disabled={triageBusy} onClick={() => void triage('acknowledged')}>
+                Acknowledge
+              </button>
+              <button type="button" className="btn small ghost" disabled={triageBusy} onClick={() => void triage('ignored')}>
+                Ignore
+              </button>
+              <button type="button" className="btn small ghost" disabled={triageBusy} onClick={() => void triage('false_positive')}>
+                False positive
+              </button>
+              <button type="button" className="btn small ghost" disabled={triageBusy} onClick={() => void triage('none')}>
+                Clear
+              </button>
+            </div>
+            <p className="tiny dim" style={{ marginTop: 8 }}>
+              Ignored and false-positive findings are hidden from default views, counts and alerts. They remain in
+              scan history and can be restored here.
+            </p>
           </section>
 
           <section className="drawer-section">

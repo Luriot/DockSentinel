@@ -92,6 +92,23 @@ export function registerScanRoutes(app: FastifyInstance, ctx: AppContext): void 
     },
   );
 
+  app.post(
+    '/scans/scan-all',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { profile: { type: 'string', enum: ['quick', 'standard'] } },
+        },
+      },
+    },
+    async (req) => {
+      const body = (req.body ?? {}) as { profile?: ScanProfile };
+      return ctx.coordinator.enqueueAllManual(body.profile === 'quick' ? 'quick' : 'standard');
+    },
+  );
+
   app.post('/scans/:id/cancel', async (req) => {
     const id = parseId((req.params as { id: string }).id, 'id');
     const scan = getScan(ctx.db, id);

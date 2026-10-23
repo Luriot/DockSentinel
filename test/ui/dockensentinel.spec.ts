@@ -179,6 +179,36 @@ test('configuration and secret findings show metadata without secret values', as
   await page.screenshot({ path: join(SCREENS, '06b-content.png'), fullPage: true });
 });
 
+test('finding triage acknowledges and clears a finding, and exports CSV', async ({ page }) => {
+  await login(page);
+  await page.goto(`${server.url}/vulnerabilities`);
+  await page.locator('table tbody tr').first().click();
+  const drawer = page.getByRole('dialog');
+  await expect(drawer.getByRole('heading', { name: 'Triage' })).toBeVisible();
+  await drawer.getByRole('button', { name: 'Acknowledge' }).click();
+  await expect(drawer.getByText('Acknowledged')).toBeVisible();
+  await drawer.getByRole('button', { name: 'Clear' }).click();
+  await expect(drawer.getByText('Not triaged')).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.csv$/);
+});
+
+test('system status shows storage, hosts and creates a backup', async ({ page }) => {
+  await login(page);
+  await page.goto(`${server.url}/status`);
+  await expect(page.getByRole('heading', { name: 'System status', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Docker hosts' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create backup' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Backup created' })).toBeVisible();
+  await expect(page.locator('table').filter({ hasText: 'docksentinel-' }).first()).toBeVisible();
+  await page.screenshot({ path: join(SCREENS, '07b-status.png'), fullPage: true });
+});
+
 test('settings changes are validated and persisted', async ({ page }) => {
   await login(page);
   await page.goto(`${server.url}/settings`);

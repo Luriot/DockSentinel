@@ -5,7 +5,7 @@ import type { Config } from '../config.ts';
 import type { Logger } from '../logger.ts';
 import { DockerClient, DockerError } from '../docker/client.ts';
 import { getEnvironment, toDockerConnection, type EnvironmentRecord } from '../repo/environments.ts';
-import { applyScanFindings, type ApplyScanOutcome } from '../repo/findings.ts';
+import { applyScanFindings, refreshImageFindingCounts, type ApplyScanOutcome } from '../repo/findings.ts';
 import { applyContentFindings } from '../repo/content.ts';
 import { describeImage, listScanEnvironments, updateImageAfterScan } from '../repo/images.ts';
 import {
@@ -148,6 +148,19 @@ export class ScanCoordinator {
     this.log.info({ scanId, imageId, profile, kind }, 'manual scan queued');
     void this.tick();
     return { queued: true, scanId, message: 'Scan queued' };
+  }
+
+  enqueueAllManual(profile: ScanProfile): { queued: number; skipped: number; total: number } {
+    const images = this.db.all<{ image_id: string }>('SELECT image_id FROM images ORDER BY image_id LIMIT 200');
+    let queued = 0;
+    let skipped = 0;
+    for (const image of images) {
+      const result = this.enqueueManual(image.image_id, profile, 'vulnerability');
+      if (result.queued) queued += 1;
+      else skipped += 1;
+    }
+    this.log.info({ queued, skipped, total: images.length, profile }, 'manual scan-all requested');
+    return { queued, skipped, total: images.length };
   }
 
   enqueueScheduled(imageId: string, profile: ScanProfile, trigger: ScanTrigger, priority = 0): number | null {
@@ -334,6 +347,7 @@ export class ScanCoordinator {
         warnings: result.warnings,
       });
       updateImageAfterScan(this.db, scan.imageId, scan.id, 'success', applied.counts, result.os);
+      refreshImageFindingCounts(this.db, scan.imageId);
       return applied;
     });
 

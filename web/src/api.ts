@@ -3,6 +3,7 @@ export type PriorityTier = 'P1' | 'P2' | 'P3' | 'P4';
 export type ExposureState = 'confirmed' | 'potential' | 'internal' | 'unknown';
 export type ScanStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
 export type ScanKind = 'vulnerability' | 'content';
+export type TriageStatus = 'none' | 'acknowledged' | 'ignored' | 'false_positive';
 export type ContentKind = 'misconfiguration' | 'secret';
 export type ContentScope = 'image' | 'image-config';
 
@@ -135,6 +136,9 @@ export interface FindingView {
   lastSeenAt: string;
   lastScanId: number | null;
   resolvedAt: string | null;
+  triageStatus: TriageStatus;
+  triageNote: string | null;
+  triagedAt: string | null;
   priority: Priority;
   containers: ContainerSummary[];
   containerCount: number;
@@ -425,6 +429,44 @@ export interface OverviewData {
   freshnessHours: number;
 }
 
+
+export interface BackupInfo {
+  name: string;
+  createdAt: string;
+  sizeBytes: number;
+  hasKey: boolean;
+}
+
+export interface UpdateStatus {
+  state: 'unknown' | 'current' | 'available' | 'error';
+  currentVersion: string;
+  latestVersion: string | null;
+  url: string | null;
+  checkedAt: string;
+  message: string;
+}
+
+export interface SystemStatusData {
+  version: string;
+  nodeVersion: string;
+  uptimeSeconds: number;
+  schemaVersion: number;
+  dataDir: string;
+  scanner: ScannerInfo;
+  kev: KevStatus;
+  environments: {
+    id: number;
+    name: string;
+    status: 'unknown' | 'online' | 'offline';
+    statusMessage: string | null;
+    enabled: boolean;
+    scanEnabled: boolean;
+    lastContactAt: string | null;
+  }[];
+  disk: { totalBytes: number; freeBytes: number; usedBytes: number } | null;
+  backups: { last: BackupInfo | null; items: BackupInfo[] };
+  update: UpdateStatus | null;
+}
 
 export interface SessionInfo {
   needsSetup: boolean;

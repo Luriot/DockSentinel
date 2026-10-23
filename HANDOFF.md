@@ -1,8 +1,9 @@
 # DockSentinel handoff
 
 Status: **user-friendly first-run onboarding, one-click local Docker detection, a Windows double-click
-installer, native distribution, VS Code workflow and opt-in content scans implemented and verified locally;
-changes are committed but not pushed or published.** The published image on GHCR predates this iteration.
+installer, CI test gating, finding triage/export, System Status/backups, native distribution, VS Code workflow
+and opt-in content scans implemented and verified locally; changes are committed but not pushed or published.**
+The published image on GHCR predates this iteration.
 This document states exactly what exists, what was executed, and what remains.
 
 Built on 2026-10-22/23 with Node.js 26.4.0, Trivy 0.75.0, Docker Desktop 4.96.2 (Linux Engine 29.9.2),
@@ -159,9 +160,9 @@ npm run dev:web             # Vite on :5173, proxies /api to :8080
 npm run native:setup        # build UI + install checksum-verified Trivy for native mode
 npm run native              # native launcher on 127.0.0.1:8080
 npm run typecheck
-npm test                    # 72 unit + integration tests
+npm test                    # 82 unit + integration tests
 npx playwright install chromium
-npm run test:ui             # 12 browser tests
+npm run test:ui             # 14 browser tests
 npm run build               # typecheck + production SPA
 npm start                   # serves API + web/dist on :8080
 ```
@@ -216,7 +217,7 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passed (strict, `noUnusedLocals`, backend + web) |
-| `npm test` | **77/77 passing** in ~54 s |
+| `npm test` | **82/82 passing** in ~66 s |
 | Real Trivy end-to-end test | Passed; synthetic Debian 11 image produced **61 findings** (3 critical, 10 high, 26 medium, 20 low, 2 unknown); failure-preservation and cleanup assertions passed |
 | Docker discovery tests | Passed: 3 containers, 2 images, `0.0.0.0:8080` → potential exposure, declared label → confirmed, stopped → unknown, non-DockSentinel labels discarded, independent endpoint failure, only GET requests |
 | Notification tests | Passed: one grouped alert per scan, dedupe, ntfy Bearer header, retry/backoff, test success/failure, disabled mode |
@@ -224,9 +225,11 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Scheduler tests | Passed: discovery, new-image queueing without duplication, quick vs standard due logic, stale alert once/day |
 | Persistence/recovery tests | Passed: settings/session/inventory across restart, migrations idempotent, interrupted scans requeued/failed correctly |
 | Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage; absolute-form and percent-encoded API auth bypass regression tests; login rechecks the hash after async verification |
-| `vite build` | Passed: `index.html` 0.85 kB, CSS 26.18 kB (6.10 kB gzip), JS 370.27 kB (101.16 kB gzip) |
-| `npm run test:ui` | **12/12 passing** (Chromium headless), screenshots captured under `test-results/screens` |
-| Backup script | Verified: consistent DB snapshot + key copy + backup opens with expected data |
+| `vite build` | Passed: `index.html` 0.85 kB, CSS 26.18 kB (6.10 kB gzip), JS 386.84 kB (104.52 kB gzip) |
+| `npm run test:ui` | **14/14 passing** (Chromium headless), screenshots captured under `test-results/screens` |
+| Backup script + UI | Verified: consistent DB snapshot + key copy; System Status can create/list backups and stage a restore; startup applies the staged restore with a pre-restore copy |
+| Finding triage/export | Verified: acknowledge/ignore/false-positive actions, suppression from default counts/alerts, CSV formula mitigation and JSON export |
+| CI workflow | Added `.github/workflows/test.yml`; publish now has a reusable `test` job dependency. YAML validated locally; remote run awaits first push |
 | Password reset script | Verified: new password accepted, old rejected, sessions invalidated |
 | `npm audit` (prod and all) | 0 vulnerabilities at verification time |
 | Workflow YAML | Parsed and executed successfully on the previous publication (run 39872718832); not re-run this iteration |
@@ -351,8 +354,24 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
    still use the command-line path).
 4. **Review the tag policy**: `latest`, `main` and `sha-<commit>` are published for the previous image. Create
    a `v*` tag when you want semver tags.
-5. Optionally add a CI test workflow and an arm64 runtime check; deliberately not added to avoid
-   unnecessary Actions runs.
+5. **Run the new CI workflow** on the first push; verify the reusable test job gates the publish job.
+6. Optionally add an arm64 runtime check and Windows code signing/service packaging.
+
+## Notification providers (assessment only)
+
+Current delivery is hard-wired to ntfy in `src/notify/ntfy.ts` and `NotificationDispatcher`; alerts already
+store generic title/body/tags/priority/history. Easiest next providers, in order:
+
+1. **Discord or Slack incoming webhook** — one JSON POST to an admin-configured webhook; reuse the stored
+   alert body with size truncation. Estimated ~100–150 backend lines plus settings/UI/test.
+2. **Gotify or Telegram** — similarly small HTTP integrations with a token/chat id.
+3. **Generic webhook** — useful for automation, but it is admin-controlled SSRF by design; validate scheme
+   and make it opt-in.
+4. **SMTP email** — not a small change: Node has no SMTP client, formatting/attachments/TLS/bounce handling
+   need a maintained library and more settings. Defer.
+
+A small `NotificationProvider` interface and provider-specific settings would be needed before adding more
+than one; ntfy-specific fields currently permeate settings, dispatcher validation and UI.
 
 ## Notable decisions and deviations
 

@@ -268,6 +268,14 @@ gh attestation verify oci://ghcr.io/luriot/docksentinel:latest -R Luriot/DockSen
 `docker compose up --build` builds from local source instead of pulling. Create a `v*` tag and push it to
 publish semver tags.
 
+## Backups and restore
+
+The System Status page can create a consistent `VACUUM INTO` snapshot in `DATA_DIR/backups`, list existing
+snapshots, and stage a restore. A staged restore is applied on the next restart; the current database is
+first copied to a `pre-restore-*.db` backup and WAL/SHM files are removed. The encryption key is not replaced
+by a UI restore, so restoring a database from a different instance may make encrypted endpoint/notification
+secrets unreadable. The CLI `npm run backup` remains available and copies the key for off-site backups.
+
 ## Health, shutdown and logs
 
 - Liveness/readiness: `GET /api/health` (no authentication) executes a database query and returns

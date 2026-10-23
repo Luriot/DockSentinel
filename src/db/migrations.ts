@@ -275,6 +275,16 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX content_findings_kind ON content_findings(kind, resolved_at);
     `,
   },
+  {
+    version: 3,
+    name: 'finding triage',
+    sql: `
+      ALTER TABLE findings ADD COLUMN triage_status TEXT NOT NULL DEFAULT 'none'
+        CHECK (triage_status IN ('none','acknowledged','ignored','false_positive'));
+      ALTER TABLE findings ADD COLUMN triage_note TEXT;
+      ALTER TABLE findings ADD COLUMN triaged_at TEXT;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

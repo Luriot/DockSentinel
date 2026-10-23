@@ -74,6 +74,7 @@ export class AlertService {
 
     if (settings.alertOnNew && outcome.appeared.length > 0) {
       const alertable = outcome.appeared
+        .filter((entry) => !this.isSuppressed(entry.id))
         .map((entry) => entry.finding)
         .filter((finding) => this.isAlertable(context, finding));
       if (alertable.length > 0) {
@@ -89,7 +90,9 @@ export class AlertService {
     }
 
     if (settings.alertOnResolved && outcome.resolved.length > 0) {
-      const alertable = outcome.resolved.filter((finding) => this.isAlertable(context, finding));
+      const alertable = outcome.resolved
+        .filter((finding) => !this.isSuppressed(finding.id))
+        .filter((finding) => this.isAlertable(context, finding));
       if (alertable.length > 0) {
         const message = resolvedFindingsMessage(context.image, scan, alertable, settings.publicUrl);
         this.record('resolved_findings', `resolved:${scan.imageId}:${scan.id}`, scan.environmentId, scan.imageId, message);
@@ -101,6 +104,7 @@ export class AlertService {
       .map((change) => change.finding.id);
     if (fixedIds.length > 0) {
       const fixed = findingsByIds(this.db, fixedIds)
+        .filter((finding) => finding.triageStatus !== 'ignored' && finding.triageStatus !== 'false_positive')
         .map(toNormalized)
         .filter((finding) => finding.fixedVersion && this.isAlertable(context, finding));
       if (fixed.length > 0) {
@@ -144,9 +148,9 @@ export class AlertService {
     for (const [imageId, findingIds] of byImage) {
       const context = this.contextFor(imageId);
       if (!context || context.monitored.length === 0) continue;
-      const findings = findingsByIds(this.db, findingIds).filter((finding) =>
-        this.isAlertable(context, { vulnId: finding.vulnId, severity: finding.severity }),
-      );
+      const findings = findingsByIds(this.db, findingIds)
+        .filter((finding) => finding.triageStatus !== 'ignored' && finding.triageStatus !== 'false_positive')
+        .filter((finding) => this.isAlertable(context, { vulnId: finding.vulnId, severity: finding.severity }));
       if (findings.length === 0) continue;
       const message = knownExploitedMessage(
         context.image,
@@ -233,6 +237,14 @@ export class AlertService {
   }
 
   /** A finding alerts when any monitored container using the image crosses its resolved threshold. */
+  private isSuppressed(findingId: number): boolean {
+    return Boolean(
+      this.db.get("SELECT 1 AS suppressed FROM findings WHERE id = ? AND triage_status IN ('ignored','false_positive')", [
+        findingId,
+      ]),
+    );
+  }
+
   private isAlertable(context: ScanContext, finding: { vulnId: string; severity: Severity }): boolean {
     const settings = this.getSettings();
     return context.monitored.some((container) => {

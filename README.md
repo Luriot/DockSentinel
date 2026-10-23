@@ -26,6 +26,12 @@ Docker endpoints ──► discovery ──► image scan (Trivy) ──► norm
   version capture, update fallbacks, timeouts, output caps and safe process execution.
 - Finding lifecycle: open, resolved, reappeared, severity changed. Failed scans never resolve findings
   and never masquerade as clean results.
+- Basic triage: acknowledge, ignore or mark a finding as a false positive, with optional notes. Ignored
+  findings leave default counts and alerts; CSV/JSON export is available.
+- First-run wizard with one-click Docker detection, inline ntfy setup, a visible **Scan now** action and
+  progress until the first scan finishes.
+- System status page with Docker connectivity, Trivy/database health, disk usage, backups/restore-on-restart
+  and an update check.
 - Prioritisation from severity, CISA KEV membership, fix availability, running state, network exposure
   metadata and Docker labels. Transparent, rule-based tiers — not a proprietary risk score.
 - ntfy delivery with per-image grouping, deduplication keys, retries with backoff, a test action and a
@@ -162,8 +168,12 @@ npm test               # unit + integration; real Trivy tests skip if unavailabl
 npx playwright install chromium
 npm run test:ui
 npm run build
-npm start              # production UI + API on :8080
+npm start
 ```
+
+CI runs typecheck, backend tests, build and UI tests on pull requests and feature branches. Pushes to
+`main` are tested by the publish workflow before an image is built. CLI backup remains available with
+`npm run backup`; the System Status page also has a Create backup action.
 
 ## Configuration
 

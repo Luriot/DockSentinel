@@ -135,6 +135,10 @@ consequences:
   disclosing whether they exist.
 - Login re-reads the password hash after asynchronous scrypt verification before creating a session, so
   a concurrent password change cannot leave a session created from the pre-change credential.
+- Finding triage is stored server-side. Ignored/false-positive findings are excluded from default counts and
+  alerts; restoring them is an explicit authenticated action. Backup creation and restore staging require
+  authentication/CSRF; restore is applied only on the next startup and keeps a pre-restore copy.
+- The update check uses the fixed GitHub releases endpoint; no user-supplied URL is fetched.
 - JSON-schema validation on bodies and query parameters; additional properties are stripped; request
   bodies are limited to 512 KiB.
 - Parameterised SQL everywhere; no dynamic SQL derived from user input (the only interpolation is a

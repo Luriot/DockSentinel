@@ -1,5 +1,5 @@
 import type { Db } from '../db/index.ts';
-import type { NormalizedFinding, StoredFinding } from '../domain/findings.ts';
+import type { NormalizedFinding, StoredFinding, TriageStatus } from '../domain/findings.ts';
 import { countSeverities, diffFindings, type FindingChange } from '../domain/findings.ts';
 import { normalizeSeverity, type Severity } from '../domain/severity.ts';
 import { parseWorkloadLabels } from '../domain/policy.ts';
@@ -35,6 +35,9 @@ export interface FindingRecord {
   lastSeenAt: string;
   lastScanId: number | null;
   resolvedAt: string | null;
+  triageStatus: TriageStatus;
+  triageNote: string | null;
+  triagedAt: string | null;
 }
 
 interface FindingRow {
@@ -63,6 +66,9 @@ interface FindingRow {
   last_seen_at: string;
   last_scan_id: number | null;
   resolved_at: string | null;
+  triage_status: TriageStatus;
+  triage_note: string | null;
+  triaged_at: string | null;
 }
 
 function mapFinding(row: FindingRow): FindingRecord {
@@ -92,6 +98,9 @@ function mapFinding(row: FindingRow): FindingRecord {
     lastSeenAt: row.last_seen_at,
     lastScanId: row.last_scan_id,
     resolvedAt: row.resolved_at,
+    triageStatus: row.triage_status,
+    triageNote: row.triage_note,
+    triagedAt: row.triaged_at,
   };
 }
 
@@ -381,6 +390,7 @@ export interface FindingFilters {
   fixableOnly?: boolean;
   runningOnly?: boolean;
   state?: 'open' | 'resolved' | 'all';
+  includeSuppressed?: boolean;
   page: number;
   pageSize: number;
 }
@@ -396,6 +406,7 @@ export function listFindings(
   const state = filters.state ?? 'open';
   if (state === 'open') conditions.push('f.resolved_at IS NULL');
   if (state === 'resolved') conditions.push('f.resolved_at IS NOT NULL');
+  if (!filters.includeSuppressed) conditions.push("f.triage_status NOT IN ('ignored','false_positive')");
   if (filters.imageId) {
     conditions.push('f.image_id = ?');
     params.push(filters.imageId);
@@ -472,6 +483,36 @@ export function listFindings(
       UNKNOWN: Number(counts.UNKNOWN ?? 0),
     },
   };
+}
+
+export function refreshImageFindingCounts(db: Db, imageId: string): void {
+  db.run(
+    `UPDATE images SET
+       critical_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'CRITICAL'),
+       high_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'HIGH'),
+       medium_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'MEDIUM'),
+       low_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'LOW'),
+       unknown_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'UNKNOWN'),
+       fixable_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND fixed_version IS NOT NULL AND fixed_version <> '')
+     WHERE image_id = ?`,
+    [imageId],
+  );
+}
+
+export function setFindingTriage(
+  db: Db,
+  id: number,
+  status: TriageStatus,
+  note: string | null,
+  now: string,
+): FindingRecord | null {
+  const row = db.get<FindingRow>('SELECT * FROM findings WHERE id = ?', [id]);
+  if (!row) return null;
+  db.run(
+    `UPDATE findings SET triage_status = ?, triage_note = ?, triaged_at = ? WHERE id = ?`,
+    [status, status === 'none' ? null : note, status === 'none' ? null : now, id],
+  );
+  return mapFinding({ ...row, triage_status: status, triage_note: status === 'none' ? null : note, triaged_at: status === 'none' ? null : now });
 }
 
 export function getFinding(db: Db, id: number): FindingView | null {

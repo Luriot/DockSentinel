@@ -27,8 +27,13 @@ permissions:
   attestations: write
 
 jobs:
+  test:
+    name: Test before publishing
+    uses: ./.github/workflows/test.yml
+
   publish:
     name: Build and push linux/amd64 + linux/arm64
+    needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:

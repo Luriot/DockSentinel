@@ -82,13 +82,14 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
        COUNT(*) AS total,
        SUM(CASE WHEN kev = 1 THEN 1 ELSE 0 END) AS kev,
        SUM(CASE WHEN fixed_version IS NOT NULL AND fixed_version <> '' THEN 1 ELSE 0 END) AS fixable
-     FROM findings WHERE resolved_at IS NULL`,
+     FROM findings WHERE resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive')`,
   );
 
   const affectedRunning = db.get<{ count: number }>(
     `SELECT COUNT(DISTINCT c.id) AS count FROM containers c
      WHERE c.present = 1 AND c.state = 'running'
        AND EXISTS (SELECT 1 FROM findings f WHERE f.image_id = c.image_id AND f.resolved_at IS NULL
+                   AND f.triage_status NOT IN ('ignored','false_positive')
                    AND f.severity IN ${AFFECTED_SEVERITIES})`,
   )?.count ?? 0;
 
@@ -99,6 +100,7 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
   const affectedImages = db.get<{ count: number }>(
     `SELECT COUNT(*) AS count FROM images i
      WHERE EXISTS (SELECT 1 FROM findings f WHERE f.image_id = i.image_id AND f.resolved_at IS NULL
+                   AND f.triage_status NOT IN ('ignored','false_positive')
                    AND f.severity IN ${AFFECTED_SEVERITIES})
        AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = i.image_id AND c.present = 1)`,
   )?.count ?? 0;

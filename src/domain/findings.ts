@@ -19,6 +19,8 @@ export interface NormalizedFinding {
   modifiedAt: string | null;
 }
 
+export type TriageStatus = 'none' | 'acknowledged' | 'ignored' | 'false_positive';
+
 export interface StoredFinding {
   id: number;
   target: string;

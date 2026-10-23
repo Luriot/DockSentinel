@@ -16,6 +16,7 @@ import { Scheduler } from './jobs/scheduler.ts';
 import { buildServer } from './api/server.ts';
 import type { AppContext } from './api/context.ts';
 import { getScannerInfo } from './scanner/info.ts';
+import { applyPendingRestore } from './backup.ts';
 import {
   browserUrl,
   checkDataDir,
@@ -41,6 +42,8 @@ export async function start(): Promise<StartedServer> {
   const log = createLogger(config.logLevel);
   const startedAt = Date.now();
 
+  const restoreSafety = applyPendingRestore(config);
+  if (restoreSafety) log.warn({ safetyBackup: restoreSafety }, 'applied staged database restore');
   await mkdir(config.trivyCacheDir, { recursive: true });
   const db = Db.open(config.dbPath);
   const getSettings = (): AppSettings => loadSettings(db, config.secretKey);

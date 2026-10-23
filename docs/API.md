@@ -35,14 +35,16 @@ administrative endpoints. All JSON responses use camelCase. Errors have the shap
 | `GET` | `/api/images/:imageId` | Image inventory, containers, findings, counts, scans, events |
 | `GET` | `/api/containers` | Filters: `q`, `envId`, `status=running\|stopped\|all`, `exposure`, `includeRemoved`, paging |
 | `GET` | `/api/containers/:environmentId/:id` | Container detail, image, findings, scans |
-| `GET` | `/api/findings` | Filters: `q`, `severity` (comma list), `envId`, `imageId`, `kev`, `fixable`, `running`, `state=open\|resolved\|all`, paging |
+| `GET` | `/api/findings` | Filters: `q`, `severity` (comma list), `envId`, `imageId`, `kev`, `fixable`, `running`, `state=open\|resolved\|all`, `includeSuppressed`, paging |
 | `GET` | `/api/findings/:id` | Finding detail, image, events, scans |
+| `GET` | `/api/findings/export` | CSV/JSON export with the same finding filters (`format=csv\|json`) |
 | `GET` | `/api/content-findings` | Opt-in misconfiguration/secret metadata; filters `kind`, `severity`, `state`, `imageId`, `q`, paging. Never contains secret values |
 | `GET` | `/api/scans` | Filters: `status`, `kind=vulnerability\|content`, `imageId`, `envId`, paging |
 | `GET` | `/api/scans/:id` | Scan detail |
 | `GET` | `/api/notifications` | ntfy public settings, alert history, delivery counts (`status`, `kind`, paging) |
 | `GET` | `/api/settings` | Public settings, KEV status, scanner status |
 | `GET` | `/api/system` | Version, runtime limits, activity, scanner/KEV status |
+| `GET` | `/api/system/status` | Docker host health, scanner/KEV, disk, backups and app status |
 
 Image IDs contain `:`. Encode them in the path (`sha256%3A…`); Fastify decodes them.
 
@@ -63,9 +65,14 @@ Image IDs contain `:`. Encode them in the path (`sha256%3A…`); Fastify decodes
 | `POST` | `/api/images/:imageId/content-scan` | Opt-in misconfiguration/secret scan; `409` if disabled or a scan is active |
 | `POST` | `/api/scans` | `{ imageId, profile?, kind? }`; queues a manual vulnerability or content scan |
 | `POST` | `/api/scans/:id/cancel` | Cancels a queued/running scan |
+| `POST` | `/api/scans/scan-all` | Queues a standard scan for all known images (`{ profile?: "quick"\|"standard" }`) |
 | `POST` | `/api/notifications/test` | Sends a test notification with the saved configuration |
 | `POST` | `/api/kev/sync` | Synchronises the CISA KEV catalogue (may take a few seconds) |
+| `PATCH` | `/api/findings/:id/triage` | `{ status: "none"\|"acknowledged"\|"ignored"\|"false_positive", note? }` |
 | `PATCH` | `/api/settings` | Any subset of settings, including nested `ntfy` |
+| `POST` | `/api/system/backup` | Creates a consistent database snapshot in `DATA_DIR/backups` |
+| `POST` | `/api/system/restore` | `{ name }` stages a backup for restore on the next restart |
+| `POST` | `/api/system/update-check` | Checks the latest GitHub release |
 
 ### Settings payload
 

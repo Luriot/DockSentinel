@@ -17,6 +17,10 @@ import { getScannerInfo } from '../../scanner/info.ts';
 import { SCHEMA_VERSION } from '../../db/migrations.ts';
 import { scanStatusCounts } from '../../repo/scans.ts';
 import { isoAfter } from '../../util/time.ts';
+import { statfs } from 'node:fs/promises';
+import { createBackup, listBackups, stageRestore } from '../../backup.ts';
+import { checkForUpdates } from '../../system/update.ts';
+import { listEnvironments } from '../../repo/environments.ts';
 
 interface NtfyPatch {
   enabled?: boolean;
@@ -189,6 +193,69 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
   app.post('/notifications/test', async () => ctx.alerts.sendTest());
 
   app.post('/kev/sync', async () => ctx.kev.syncNow());
+
+  app.get('/system/status', async () => {
+    const scanner = await getScannerInfo(ctx.config);
+    const backups = listBackups(ctx.config.dataDir);
+    let disk: { totalBytes: number; freeBytes: number; usedBytes: number } | null = null;
+    try {
+      const stats = await statfs(ctx.config.dataDir);
+      const totalBytes = Number(stats.blocks) * Number(stats.bsize);
+      const freeBytes = Number(stats.bavail) * Number(stats.bsize);
+      disk = { totalBytes, freeBytes, usedBytes: totalBytes - freeBytes };
+    } catch {
+      // Disk statistics are optional and platform dependent.
+    }
+    return {
+      version: ctx.config.version,
+      nodeVersion: process.version,
+      uptimeSeconds: Math.round((Date.now() - ctx.startedAt) / 1000),
+      schemaVersion: SCHEMA_VERSION,
+      dataDir: ctx.config.dataDir,
+      scanner,
+      kev: ctx.kev.status(),
+      environments: listEnvironments(ctx.db).map((environment) => ({
+        id: environment.id,
+        name: environment.name,
+        status: environment.status,
+        statusMessage: environment.statusMessage,
+        enabled: environment.enabled,
+        scanEnabled: environment.scanEnabled,
+        lastContactAt: environment.lastContactAt,
+      })),
+      disk,
+      backups: { last: backups[0] ?? null, items: backups },
+      update: null,
+    };
+  });
+
+  app.post('/system/backup', async () => {
+    const result = createBackup(ctx.config);
+    ctx.log.info({ databasePath: result.databasePath }, 'database backup created');
+    return { ok: true, ...result };
+  });
+
+  app.post(
+    '/system/restore',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['name'],
+          properties: { name: { type: 'string', maxLength: 200 } },
+        },
+      },
+    },
+    async (req) => {
+      const { name } = req.body as { name: string };
+      stageRestore(ctx.config.dataDir, ctx.config.dbPath, name);
+      ctx.log.warn({ backup: name }, 'database restore staged; restart required');
+      return { ok: true, restartRequired: true, message: 'Restart DockSentinel to apply the restore.' };
+    },
+  );
+
+  app.post('/system/update-check', async () => checkForUpdates(ctx.config.version));
 
   app.get('/system', async () => ({
     version: ctx.config.version,

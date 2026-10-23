@@ -63,6 +63,8 @@ src/
 ├─ repo/                    SQL access grouped by aggregate
 │  ├─ environments, images, containers, findings, content, scans, alerts, settings, kev, overview
 ├─ startup.ts               startup preflight and actionable errors
+├─ backup.ts                VACUUM INTO backup, staging and startup restore
+├─ system/update.ts         GitHub release update check
 ├─ auth.ts, passwords.ts, secrets.ts, security/rate-limit.ts
 ├─ scripts/native.ts        native launcher (loopback default, managed Trivy)
 ├─ scripts/native-setup.ts  UI build + checksum-verified Trivy installer
@@ -93,7 +95,7 @@ transactions cannot interleave with other writers.
 | `image_locations` | Which tag/digest reference exists on which environment (replaced atomically on discovery) |
 | `containers` | Current inventory keyed by `(environment_id, docker_id)`, state, filtered labels, ports, exposure classification, `present` flag |
 | `scans` | One row per attempt: kind (`vulnerability`/`content`), profile, trigger, status, timings, counts, scanner/DB versions, error, warnings, attempt count |
-| `findings` | Current vulnerability state per image/identity, severity, fix, CVSS, KEV flag, episode, first/last seen, resolution |
+| `findings` | Current vulnerability state per image/identity, severity, fix, CVSS, KEV flag, episode, first/last seen, resolution, triage status/note |
 | `content_findings` | Opt-in misconfiguration/secret metadata per image/identity; rule, path, line, category, severity, episode, resolution. Never secret values or code |
 | `finding_events` | Append-only lifecycle history: appeared, resolved, reappeared, changed |
 | `alerts` | Notification records with dedupe key, rendered body, delivery status, attempts, last error, next attempt |
@@ -152,6 +154,17 @@ A content scan follows the same queue/export/scratch path but branches at the sc
 `content_findings`, never to vulnerability counters or alert evaluation, and only a successful, parsed
 report may resolve previous content findings. The raw secret `Match`/code fields are dropped during
 parsing.
+
+## Triage, status and backups
+
+Triage is stored on the finding row (`triage_status`, `triage_note`, `triaged_at`). Acknowledged findings
+remain visible; ignored and false-positive findings are excluded from default lists, overview/image counts,
+and alerts until cleared. `refreshImageFindingCounts()` keeps denormalised image counters consistent.
+
+The System Status page reads `GET /api/system/status` (Docker host states, scanner/KEV, `statfs` disk usage,
+backup files, app version). Backups are filesystem snapshots under `DATA_DIR/backups`, not database tables. Backups use `VACUUM INTO`; restore stages a validated SQLite file and applies it
+before the database opens on the next start, retaining a pre-restore copy. Update checks use the fixed
+GitHub releases API, not a user-supplied URL.
 
 ## Native bootstrap
 

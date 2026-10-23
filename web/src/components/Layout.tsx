@@ -25,6 +25,7 @@ import { Images } from '../views/Images.tsx';
 import { Vulnerabilities } from '../views/Vulnerabilities.tsx';
 import { Content } from '../views/Content.tsx';
 import { Welcome } from '../views/Welcome.tsx';
+import { Status } from '../views/Status.tsx';
 import { Scans } from '../views/Scans.tsx';
 import { Notifications } from '../views/Notifications.tsx';
 import { Settings } from '../views/Settings.tsx';
@@ -76,6 +77,11 @@ const ROUTES: Record<string, RouteDefinition> = {
     subtitle: 'ntfy delivery, alert policy and history',
     component: Notifications,
   },
+  '/status': {
+    title: 'System status',
+    subtitle: 'Health, storage, backups and updates',
+    component: Status,
+  },
   '/settings': {
     title: 'Settings',
     subtitle: 'Scanning, retention, intelligence and security',
@@ -109,7 +115,10 @@ const NAV_GROUPS = [
   },
   {
     label: 'System',
-    items: [{ path: '/settings', label: 'Settings', icon: IconSettings }],
+    items: [
+      { path: '/status', label: 'System status', icon: IconActivity },
+      { path: '/settings', label: 'Settings', icon: IconSettings },
+    ],
   },
 ];
 
