@@ -463,7 +463,10 @@ export interface SystemStatusData {
     scanEnabled: boolean;
     lastContactAt: string | null;
   }[];
-  disk: { totalBytes: number; freeBytes: number; usedBytes: number } | null;
+  disk: {
+    data: { totalBytes: number; freeBytes: number; usedBytes: number } | null;
+    scannerCache: { totalBytes: number; freeBytes: number; usedBytes: number } | null;
+  };
   backups: { last: BackupInfo | null; items: BackupInfo[] };
   update: UpdateStatus | null;
 }

@@ -66,7 +66,9 @@ export function Status() {
   if (loading && !data) return <InlineLoading label="Loading system status…" />;
   if (error && !data) return <ErrorPanel error={error} onRetry={refresh} />;
   if (!data) return null;
-  const diskPercent = data.disk && data.disk.totalBytes > 0 ? Math.round((data.disk.usedBytes / data.disk.totalBytes) * 100) : null;
+  const dataDisk = data.disk.data;
+  const cacheDisk = data.disk.scannerCache;
+  const diskPercent = dataDisk && dataDisk.totalBytes > 0 ? Math.round((dataDisk.usedBytes / dataDisk.totalBytes) * 100) : null;
   const currentUpdate = update ?? data.update;
 
   return (
@@ -125,11 +127,12 @@ export function Status() {
           <div className="card-header"><div><h2 className="section-title">Storage</h2><p className="section-subtitle">Data directory</p></div><IconServer width={18} height={18} /></div>
           <div className="card-body">
             <div className="mono small" style={{ wordBreak: 'break-all' }}>{data.dataDir}</div>
-            {data.disk ? (
+            {dataDisk ? (
               <>
-                <div className="spread" style={{ marginTop: 12 }}><span>{formatBytes(data.disk.usedBytes)} used</span><span className="dim">{diskPercent}%</span></div>
+                <div className="spread" style={{ marginTop: 12 }}><span>Data volume · {formatBytes(dataDisk.usedBytes)} used</span><span className="dim">{diskPercent}%</span></div>
                 <div className="severity-bar" style={{ marginTop: 6 }}><span style={{ width: `${Math.min(100, diskPercent ?? 0)}%` }} /></div>
-                <div className="tiny dim" style={{ marginTop: 6 }}>{formatBytes(data.disk.freeBytes)} free of {formatBytes(data.disk.totalBytes)}</div>
+                <div className="tiny dim" style={{ marginTop: 6 }}>{formatBytes(dataDisk.freeBytes)} free of {formatBytes(dataDisk.totalBytes)}</div>
+                {cacheDisk ? <div className="tiny dim" style={{ marginTop: 6 }}>Trivy cache volume: {formatBytes(cacheDisk.freeBytes)} free of {formatBytes(cacheDisk.totalBytes)}</div> : null}
               </>
             ) : <p className="small dim">Disk usage is not available on this platform.</p>}
           </div>

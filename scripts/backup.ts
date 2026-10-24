@@ -11,9 +11,15 @@
 import { loadConfig } from '../src/config.ts';
 import { createBackup } from '../src/backup.ts';
 
-const config = loadConfig();
-const result = createBackup(config, process.argv[2]);
-console.log(`Database backup written to ${result.databasePath}`);
-if (result.keyPath) console.log(`Encryption key copied to ${result.keyPath}`);
-else console.log('The secret key comes from DOCKSENTINEL_SECRET_KEY; back it up separately.');
-console.log('Backups contain credentials and Docker endpoint TLS material. Store them encrypted.');
+const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log('Usage: npm run backup [target-directory]');
+  console.log('Creates a SQLite snapshot and copies the local encryption key when present.');
+} else {
+  if (args.length > 1 || args[0]?.startsWith('-')) throw new Error('Usage: npm run backup [target-directory]');
+  const result = createBackup(loadConfig(), args[0]);
+  console.log(`Database backup written to ${result.databasePath}`);
+  if (result.keyPath) console.log(`Encryption key copied to ${result.keyPath}`);
+  else console.log('The secret key comes from DOCKSENTINEL_SECRET_KEY; back it up separately.');
+  console.log('Backups contain credentials and Docker endpoint TLS material. Store them encrypted.');
+}

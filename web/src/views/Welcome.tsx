@@ -56,15 +56,28 @@ export function Welcome({ onConnected }: { onConnected: () => void }) {
     setScanBusy(true);
     setScanMessage(null);
     try {
-      const queued = await api.post<{ queued: number; skipped: number; total: number }>('/scans/scan-all', {
-        profile: 'standard',
-      });
+      let cursor: string | undefined;
+      let queuedCount = 0;
+      let skippedCount = 0;
+      let total = 0;
+      do {
+        const batch = await api.post<{
+          queued: number;
+          skipped: number;
+          total: number;
+          nextCursor: string | null;
+        }>('/scans/scan-all', { profile: 'standard', limit: 100, ...(cursor ? { cursor } : {}) });
+        queuedCount += batch.queued;
+        skippedCount += batch.skipped;
+        total = batch.total;
+        cursor = batch.nextCursor ?? undefined;
+      } while (cursor);
       setScanMessage(
-        queued.queued > 0
-          ? `Queued ${queued.queued} image scan${queued.queued === 1 ? '' : 's'}. Results will appear here.`
-          : queued.total === 0
+        queuedCount > 0
+          ? `Queued ${queuedCount} of ${total} image scans. ${skippedCount ? `${skippedCount} were already queued or unavailable. ` : ''}Results will appear here.`
+          : total === 0
             ? 'No images were found yet. Start a container and try again.'
-            : 'Those scans are already queued or running.',
+            : 'Scans are already queued or none of these images has a connected Docker host.',
       );
       overview.refresh();
     } catch (scanError) {

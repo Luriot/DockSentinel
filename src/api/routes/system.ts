@@ -197,15 +197,20 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
   app.get('/system/status', async () => {
     const scanner = await getScannerInfo(ctx.config);
     const backups = listBackups(ctx.config.dataDir);
-    let disk: { totalBytes: number; freeBytes: number; usedBytes: number } | null = null;
-    try {
-      const stats = await statfs(ctx.config.dataDir);
-      const totalBytes = Number(stats.blocks) * Number(stats.bsize);
-      const freeBytes = Number(stats.bavail) * Number(stats.bsize);
-      disk = { totalBytes, freeBytes, usedBytes: totalBytes - freeBytes };
-    } catch {
-      // Disk statistics are optional and platform dependent.
-    }
+    const diskFor = async (path: string): Promise<{ totalBytes: number; freeBytes: number; usedBytes: number } | null> => {
+      try {
+        const stats = await statfs(path);
+        const totalBytes = Number(stats.blocks) * Number(stats.bsize);
+        const freeBytes = Number(stats.bavail) * Number(stats.bsize);
+        return { totalBytes, freeBytes, usedBytes: totalBytes - freeBytes };
+      } catch {
+        return null;
+      }
+    };
+    const [dataDisk, scannerCacheDisk] = await Promise.all([
+      diskFor(ctx.config.dataDir),
+      diskFor(ctx.config.trivyCacheDir),
+    ]);
     return {
       version: ctx.config.version,
       nodeVersion: process.version,
@@ -223,7 +228,7 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
         scanEnabled: environment.scanEnabled,
         lastContactAt: environment.lastContactAt,
       })),
-      disk,
+      disk: { data: dataDisk, scannerCache: scannerCacheDisk },
       backups: { last: backups[0] ?? null, items: backups },
       update: null,
     };

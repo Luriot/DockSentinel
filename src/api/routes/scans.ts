@@ -99,13 +99,17 @@ export function registerScanRoutes(app: FastifyInstance, ctx: AppContext): void 
         body: {
           type: 'object',
           additionalProperties: false,
-          properties: { profile: { type: 'string', enum: ['quick', 'standard'] } },
+          properties: {
+            profile: { type: 'string', enum: ['quick', 'standard'] },
+            cursor: { type: 'string', maxLength: 100 },
+            limit: { type: 'integer', minimum: 1, maximum: 200 },
+          },
         },
       },
     },
     async (req) => {
-      const body = (req.body ?? {}) as { profile?: ScanProfile };
-      return ctx.coordinator.enqueueAllManual(body.profile === 'quick' ? 'quick' : 'standard');
+      const body = (req.body ?? {}) as { profile?: ScanProfile; cursor?: string; limit?: number };
+      return ctx.coordinator.enqueueAllManual(body.profile === 'quick' ? 'quick' : 'standard', body.cursor, body.limit);
     },
   );
 

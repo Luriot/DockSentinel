@@ -150,8 +150,20 @@ export class ScanCoordinator {
     return { queued: true, scanId, message: 'Scan queued' };
   }
 
-  enqueueAllManual(profile: ScanProfile): { queued: number; skipped: number; total: number } {
-    const images = this.db.all<{ image_id: string }>('SELECT image_id FROM images ORDER BY image_id LIMIT 200');
+  enqueueAllManual(profile: ScanProfile, cursor = '', limit = 100): {
+    queued: number;
+    skipped: number;
+    total: number;
+    nextCursor: string | null;
+  } {
+    const pageSize = Math.max(1, Math.min(limit, 200));
+    const total = this.db.get<{ count: number }>('SELECT COUNT(*) AS count FROM images')?.count ?? 0;
+    const images = this.db.all<{ image_id: string }>(
+      `SELECT image_id FROM images WHERE image_id > ?
+       AND EXISTS (SELECT 1 FROM image_locations l WHERE l.image_id = images.image_id)
+       ORDER BY image_id LIMIT ?`,
+      [cursor, pageSize],
+    );
     let queued = 0;
     let skipped = 0;
     for (const image of images) {
@@ -159,8 +171,9 @@ export class ScanCoordinator {
       if (result.queued) queued += 1;
       else skipped += 1;
     }
-    this.log.info({ queued, skipped, total: images.length, profile }, 'manual scan-all requested');
-    return { queued, skipped, total: images.length };
+    const nextCursor = images.length === pageSize ? images[images.length - 1]?.image_id ?? null : null;
+    this.log.info({ queued, skipped, total, batch: images.length, profile }, 'manual scan-all batch requested');
+    return { queued, skipped, total, nextCursor };
   }
 
   enqueueScheduled(imageId: string, profile: ScanProfile, trigger: ScanTrigger, priority = 0): number | null {
