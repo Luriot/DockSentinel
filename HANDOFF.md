@@ -1,9 +1,10 @@
 # DockSentinel handoff
 
 Status: **user-friendly first-run onboarding, one-click local Docker detection, a Windows double-click
-installer, CI test gating, finding triage/export, System Status/backups, native distribution, VS Code workflow
-and opt-in content scans implemented and verified locally; changes are committed but not pushed or published.**
-The published image on GHCR predates this iteration.
+installer, CI test gating, finding triage/export, System Status/backups, a Community Applications–ready
+Unraid template, native distribution, VS Code workflow and opt-in content scans implemented and verified
+locally; changes are committed but not pushed or published.** The published image on GHCR predates this
+iteration.
 This document states exactly what exists, what was executed, and what remains.
 
 Built on 2026-10-22/23 with Node.js 26.4.0, Trivy 0.75.0, Docker Desktop 4.96.2 (Linux Engine 29.9.2),
@@ -230,7 +231,8 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | `npm run test:ui` | **14/14 passing** (Chromium headless), screenshots captured under `test-results/screens` |
 | Backup script + UI | Verified: consistent DB snapshot + key copy; System Status can create/list backups and stage a restore; startup applies the staged restore with a pre-restore copy |
 | Finding triage/export | Verified: acknowledge/ignore/false-positive actions, suppression from default counts/alerts, CSV formula mitigation and JSON export |
-| CI workflow | Added `.github/workflows/test.yml`; publish now has a reusable `test` job dependency. YAML validated locally; remote run awaits first push |
+| CI workflow | Added `.github/workflows/test.yml`; publish now has a reusable `test` job dependency. The follow-up CI run passed on Node 24.12 |
+| Unraid/CA package | Canonical `templates/docksentinel.xml`, `ca_profile.xml`, 256px icon, support/project/readme metadata. Not yet submitted to Community Applications |
 | Password reset script | Verified: new password accepted, old rejected, sessions invalidated |
 | `npm audit` (prod and all) | 0 vulnerabilities at verification time |
 | Workflow YAML | Parsed and executed successfully on the previous publication (run 39872718832); not re-run this iteration |
@@ -356,7 +358,8 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 4. **Review the tag policy**: `latest`, `main` and `sha-<commit>` are published for the previous image. Create
    a `v*` tag when you want semver tags.
 5. **Run the new CI workflow** on the first push; verify the reusable test job gates the publish job.
-6. Optionally add an arm64 runtime check and Windows code signing/service packaging.
+6. **Submit the prepared repository to Community Applications** at https://ca.unraid.net/submit/new with your Unraid forum account; approval is external to this repository.
+7. Optionally add an arm64 runtime check and Windows code signing/service packaging.
 
 ## Notification providers (assessment only)
 

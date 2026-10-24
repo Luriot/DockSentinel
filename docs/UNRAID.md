@@ -6,12 +6,19 @@ endpoint.
 
 ## Install with the template
 
-A Community Applications–style template is provided at `unraid/docksentinel.xml`.
+A Community Applications–ready template is provided at `templates/docksentinel.xml`; the repository also has
+`ca_profile.xml` and `unraid-icon.png` for submission.
 
 1. The template points at the public `ghcr.io/luriot/docksentinel:latest`, so no registry login is
    required.
-2. Copy the XML to `/boot/config/plugins/dockerMan/templates-user/docksentinel.xml` on the Unraid server,
-   or add the container manually in the Docker tab using the same settings.
+2. Copy the template to the Unraid template directory, or add the container manually in the Docker tab:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Luriot/DockSentinel/main/templates/docksentinel.xml \
+     -o /boot/config/plugins/dockerMan/templates-user/docksentinel.xml
+   ```
+
+   Then use **Docker → Add Container → DockSentinel**.
 3. The template creates:
    - `/data` → `/mnt/user/appdata/docksentinel`
    - `/var/run/docker.sock` → the host socket
@@ -19,12 +26,38 @@ A Community Applications–style template is provided at `unraid/docksentinel.xm
 4. Start the container and read the first-run setup token:
 
 ```bash
-docker logs docksentinel 2>&1 | grep -i "setup token"
+docker logs DockSentinel 2>&1 | grep -i "setup token"
 ```
 
-5. Open `http://<unraid-ip>:8080`, complete setup, then add an environment:
+5. Open `http://<unraid-ip>:8080`, complete setup, then click **Use Docker on this computer**. If you prefer
+   the manual form:
    - Kind: **Local Unix socket**
    - Address: `/var/run/docker.sock`
+
+## Community Applications listing
+
+The app is **not automatically searchable in Community Apps** just because the image and template are public.
+Community Apps is curated; the repository must pass the CA submission scan and manual review.
+
+The repository is prepared for that submission:
+
+- `ca_profile.xml` in the repository root
+- `templates/docksentinel.xml` as the canonical Docker template
+- `unraid-icon.png`
+- public `ghcr.io/luriot/docksentinel:latest` image, MIT license, support/project links
+
+To submit:
+
+1. Make sure the repository is public and `templates/docksentinel.xml` is at the raw URL referenced by
+   `<TemplateURL>`.
+2. Sign in at <https://ca.unraid.net/submit/new> with your Unraid forum account.
+3. Point the submission at `https://github.com/Luriot/DockSentinel`, run **Validate** and **Scan**, fix any
+   reported template/metadata issues, then submit for review.
+4. After approval, it becomes searchable in Community Apps. Review timing is controlled by Unraid.
+
+Until it is approved, use the manual template install above. If CA asks for a forum support thread, create one
+in the Unraid forums and replace the `<Support>` URL; GitHub Issues is valid for the repository itself but the
+reviewer may require a forum thread.
 
 ## Socket permissions on Unraid
 

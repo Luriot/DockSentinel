@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>DockSentinel is a lightweight, self-hosted Docker vulnerability monitor. It discovers images and containers across Docker endpoints, scans images with Trivy, keeps a finding history with triage, and sends optional ntfy alerts. It only reads Docker metadata and runs Trivy against exported image archives. The template uses the public ghcr.io/luriot/docksentinel image and includes a guided first-run setup.</Profile>
+  <Icon>https://raw.githubusercontent.com/Luriot/DockSentinel/main/unraid-icon.png</Icon>
+  <WebPage>https://github.com/Luriot/DockSentinel</WebPage>
+</CommunityApplications>

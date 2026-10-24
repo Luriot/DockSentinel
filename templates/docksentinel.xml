@@ -2,24 +2,30 @@
 <Container version="2">
   <Name>DockSentinel</Name>
   <Repository>ghcr.io/luriot/docksentinel:latest</Repository>
-  <Registry>https://github.com/Luriot/DockSentinel/pkgs/container/docksentinel</Registry>
+  <Registry>https://ghcr.io</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/Luriot/DockSentinel/issues</Support>
   <Project>https://github.com/Luriot/DockSentinel</Project>
+  <License>MIT</License>
+  <ExtraSearchTerms>docker vulnerability trivy scanner security cve</ExtraSearchTerms>
   <Overview>DockSentinel monitors Docker images for known vulnerabilities using Trivy, tracks findings over time and sends deduplicated ntfy alerts. It only reads Docker metadata and never starts, stops or removes containers. The image is published at ghcr.io/luriot/docksentinel. Docker socket access is privileged: prefer TLS remote endpoints when possible. If discovery fails with permission denied, add the socket group with ExtraParams --group-add=GID (check the socket GID on the host with: stat -c '%g' /var/run/docker.sock).</Overview>
-  <Category>Security: Tools:</Category>
+  <Category>Security:Tools</Category>
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
-  <TemplateURL/>
-  <Icon/>
+  <TemplateURL>https://raw.githubusercontent.com/Luriot/DockSentinel/main/templates/docksentinel.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/Luriot/DockSentinel/main/unraid-icon.png</Icon>
   <ExtraParams>--restart=unless-stopped --security-opt=no-new-privileges:true</ExtraParams>
   <PostArgs/>
   <CPUset/>
-  <DateInstalled>2026-10-22</DateInstalled>
   <DonateText/>
   <DonateLink/>
+  <ReadMe>https://raw.githubusercontent.com/Luriot/DockSentinel/main/README.md</ReadMe>
+  <Requires>Docker Engine and a writable appdata folder. Docker socket access is privileged.</Requires>
+  <Changes>Initial Community Applications release.</Changes>
+
+  <Description>DockSentinel monitors Docker images for known vulnerabilities with Trivy, tracks finding lifecycle and prioritisation, and sends optional ntfy alerts. It discovers containers and images across one or more Docker endpoints and never starts, stops or modifies containers. The image is public at ghcr.io/luriot/docksentinel. Docker socket access is privileged; prefer a read-only socket mapping, a socket proxy, or mutual-TLS remote endpoints. First-run setup uses a one-time code printed in the container log. Includes a guided Docker setup, finding triage/export, backups and system status.</Description>
 
   <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="DockSentinel web interface and API." Type="Port" Display="always" Required="true" Mask="false"/>
 
