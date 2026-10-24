@@ -98,7 +98,9 @@ initial implementation, so the image and live Docker integration were verified a
 - Single administrator, scrypt password hashing, hashed session tokens, 7-day sliding sessions,
   HttpOnly/SameSite=Strict/Secure-when-HTTPS cookies, CSRF header + Origin verification, login/setup rate
   limiting, setup token on first run, password change that invalidates other sessions.
-- Structured logs with redaction, CSP and security headers, strict JSON-schema input validation, 512 KiB
+- Structured logs with redaction, mirrored to dated text files (`DATA_DIR/logs/docksentinel-YYYY-MM-DD.log`,
+  one per local day, pruned after `LOG_RETENTION_DAYS`, 14 by default), CSP and security headers, strict
+  JSON-schema input validation, 512 KiB
   body limit, parameterised SQL, no arbitrary command execution.
 - Health endpoint with DB check, graceful shutdown, bounded retries, endpoint isolation.
 - Backup script (`VACUUM INTO` + key copy) and administrator password-reset script.

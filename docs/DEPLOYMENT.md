@@ -121,7 +121,8 @@ together.
 | --- | --- | --- |
 | `DATA_DIR` | `/data` | Do not place on a network filesystem that lacks SQLite locking |
 | `HOST` / `PORT` | `0.0.0.0` / `8080` | Listener |
-| `LOG_LEVEL` | `info` | JSON logs to stdout |
+| `LOG_LEVEL` | `info` | JSON logs to stdout and to dated files |
+| `LOG_RETENTION_DAYS` | `14` | Days of `DATA_DIR/logs/docksentinel-YYYY-MM-DD.log` kept |
 | `TRUST_PROXY` | `false` | Enable only behind a trusted proxy |
 | `COOKIE_SECURE` | `auto` | `always` when TLS terminates at a proxy |
 | `SETUP_TOKEN` | random | Logged once when unset |
@@ -281,7 +282,8 @@ secrets unreadable. The CLI `npm run backup` remains available and copies the ke
 - Liveness/readiness: `GET /api/health` (no authentication) executes a database query and returns
   `{ "status": "ok", "version": "...", "uptimeSeconds": ... }`.
 - The image defines a `HEALTHCHECK` using that endpoint.
-- Logs are structured JSON on stdout. Authentication secrets are redacted.
+- Logs are structured JSON on stdout and mirrored to `DATA_DIR/logs/docksentinel-YYYY-MM-DD.log`
+  (one file per local day, pruned after `LOG_RETENTION_DAYS`). Authentication secrets are redacted.
 - `SIGTERM` triggers graceful shutdown: stop scheduling, close HTTP, abort in-flight scans (requeued on
   next start), close the database. `tini` forwards signals correctly.
 

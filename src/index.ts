@@ -39,7 +39,10 @@ export async function start(): Promise<StartedServer> {
   await checkWebDist(config.webDist);
   await checkDataDir(config.dataDir);
 
-  const log = createLogger(config.logLevel);
+  const log = createLogger(config.logLevel, {
+    logDir: config.logDir,
+    retentionDays: config.logRetentionDays,
+  });
   const startedAt = Date.now();
 
   const restoreSafety = applyPendingRestore(config);

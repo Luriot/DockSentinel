@@ -132,6 +132,8 @@ already provides a dependency-free deployment. On unsupported platforms, install
 ## First-run and operations
 
 - The setup token is printed once in the logs (or supplied with `SETUP_TOKEN`).
+- Logs go to stdout and to `DATA_DIR/logs/docksentinel-YYYY-MM-DD.log` (one text file per day, kept for
+  `LOG_RETENTION_DAYS`, 14 by default).
 - Native mode: `DATA_DIR` persists settings, credentials, history and the scanner cache across restarts.
 - Docker mode: persist `/data` as a volume; back up the database and `secret.key` together.
 - Graceful shutdown handles `SIGINT`/`SIGTERM`; interrupted scans are recovered on the next start.
@@ -184,6 +186,7 @@ the UI and stored in SQLite.
 | `DATA_DIR` | `./data` (`npm start`); per-user folder (native launcher) | Database, secret key, cache, scratch |
 | `HOST` / `PORT` | `0.0.0.0` / `8080` (`127.0.0.1` for native launcher) | HTTP listener |
 | `LOG_LEVEL` | `info` | Structured JSON logs |
+| `LOG_RETENTION_DAYS` | `14` | Days of dated files kept in `DATA_DIR/logs` |
 | `TRUST_PROXY` | `false` | Honour `X-Forwarded-*` from a trusted proxy |
 | `COOKIE_SECURE` | `auto` | `always` / `never` / `auto` |
 | `SETUP_TOKEN` | random, logged once | First-run administrator token |

@@ -67,6 +67,9 @@ export interface Config {
   readonly webDist: string;
   readonly secretKey: Buffer;
   readonly logLevel: string;
+  /** Directory of dated text log files; also mirrored to stdout. */
+  readonly logDir: string;
+  readonly logRetentionDays: number;
   readonly trustProxy: boolean;
   readonly cookieSecure: CookieSecureMode;
   readonly trivyBin: string;
@@ -98,6 +101,8 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     webDist: overrides.webDist ?? resolve(projectRoot, 'web', 'dist'),
     secretKey: overrides.secretKey ?? loadSecretKey(dataDir),
     logLevel: overrides.logLevel ?? process.env.LOG_LEVEL ?? (isTest ? 'silent' : 'info'),
+    logDir: overrides.logDir ?? resolve(dataDir, 'logs'),
+    logRetentionDays: overrides.logRetentionDays ?? intEnv('LOG_RETENTION_DAYS', 14, 1, 365),
     trustProxy: overrides.trustProxy ?? boolEnv('TRUST_PROXY', false),
     cookieSecure: overrides.cookieSecure ?? cookieSecure,
     trivyBin: overrides.trivyBin ?? process.env.TRIVY_BIN ?? 'trivy',
