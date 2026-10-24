@@ -12,9 +12,12 @@ docs
 HANDOFF.md
 README.md
 LICENSE
-unraid
 *.log
 .env
 .env.*
 playwright.config.ts
 docker-compose.yml
+Install-DockSentinel.cmd
+scripts/install-windows.ps1
+ca_profile.xml
+unraid-icon.png
