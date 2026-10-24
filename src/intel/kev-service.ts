@@ -6,6 +6,8 @@ import { getKevStatus, syncKev, type KevStatus } from '../repo/kev.ts';
 import { ageHours } from '../util/time.ts';
 
 const SYNC_INTERVAL_HOURS = 24;
+/** A failed feed fetch must not be retried on every scheduler tick (one per minute). */
+const FAILED_RETRY_MS = 60 * 60_000;
 
 export class KevService {
   private readonly db: Db;
@@ -13,6 +15,7 @@ export class KevService {
   private readonly log: Logger;
   private readonly alerts: AlertService;
   private inFlight = false;
+  private lastFailureAt = 0;
 
   constructor(db: Db, config: Config, log: Logger, alerts: AlertService) {
     this.db = db;
@@ -29,6 +32,7 @@ export class KevService {
     const status = this.status();
     const age = ageHours(status.syncedAt);
     if (age !== null && age < SYNC_INTERVAL_HOURS) return;
+    if (Date.now() - this.lastFailureAt < FAILED_RETRY_MS) return;
     await this.syncNow();
   }
 
@@ -37,6 +41,7 @@ export class KevService {
     this.inFlight = true;
     try {
       const result = await syncKev(this.db, { url: this.config.kevUrl, log: this.log });
+      if (!result.ok) this.lastFailureAt = Date.now();
       if (result.ok && result.newlyFlagged.length > 0) {
         try {
           this.alerts.evaluateKnownExploited(result.newlyFlagged);

@@ -74,7 +74,8 @@ initial implementation, so the image and live Docker integration were verified a
 - Deduplicated image inventory by image ID; tags and digests retained for display and targets.
 - Transparent priority tiers from severity, CISA KEV, fix availability, running state, exposure and
   workload criticality labels. No proprietary risk score.
-- Optional CISA KEV sync (daily/manual) with last-known-data fallback and tri-state KEV status.
+- Optional CISA KEV sync (daily/manual) with last-known-data fallback and tri-state KEV status; a failed
+  automatic sync backs off for an hour instead of retrying on every scheduler tick.
 - Exposure classification: user-declared Internet exposure, potential exposure from published ports/host
   networking, no published ports, or unknown. Never claims a published port proves public reachability.
 - Labels: `docksentinel.exposure`, `monitor`, `criticality`, `alert-min-severity`, `ignore-vulns`.
