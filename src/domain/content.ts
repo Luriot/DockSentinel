@@ -29,10 +29,6 @@ export interface ContentFindingRecord extends NormalizedContentFinding {
   resolvedAt: string | null;
 }
 
-export interface ContentFindingView extends ContentFindingRecord {
-  imageRef: string;
-}
-
 export function contentIdentity(finding: Pick<NormalizedContentFinding, 'kind' | 'scope' | 'ruleId' | 'target' | 'startLine'>): string {
   // JSON avoids embedded NUL delimiters: node:sqlite can truncate embedded NULs when binding
   // text, which made the stored identity differ from the in-memory identity on some Node versions.

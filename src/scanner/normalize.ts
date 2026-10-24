@@ -52,11 +52,6 @@ function text(value: unknown, maxLength: number): string | null {
   return trimmed.slice(0, maxLength);
 }
 
-function requiredText(value: unknown, maxLength: number): string | null {
-  const parsed = text(value, maxLength);
-  return parsed === null ? null : parsed;
-}
-
 function nvdFallback(vulnId: string): string | null {
   return /^CVE-\d{4}-\d{4,}$/i.test(vulnId) ? `https://nvd.nist.gov/vuln/detail/${vulnId.toUpperCase()}` : null;
 }
@@ -95,7 +90,7 @@ export function parseTrivyReport(rawText: string): ParsedReport {
         continue;
       }
       const entry = result as Record<string, unknown>;
-      const target = requiredText(entry.Target, 500);
+      const target = text(entry.Target, 500);
       if (!target) {
         malformedEntries += 1;
         continue;
@@ -116,8 +111,8 @@ export function parseTrivyReport(rawText: string): ParsedReport {
           continue;
         }
         const vuln = vulnerability as Record<string, unknown>;
-        const vulnId = requiredText(vuln.VulnerabilityID, 100);
-        const pkgName = requiredText(vuln.PkgName, 300);
+        const vulnId = text(vuln.VulnerabilityID, 100);
+        const pkgName = text(vuln.PkgName, 300);
         if (!vulnId || !pkgName) {
           malformedEntries += 1;
           continue;
@@ -209,10 +204,6 @@ function contentTarget(
   return { scope: 'image', target: target || 'image' };
 }
 
-function severityOf(value: unknown): Severity {
-  return normalizeSeverity(value);
-}
-
 /**
  * Parses only the metadata of Trivy misconfiguration and secret results. The raw `Match`, `Code`
  * and layer contents are deliberately never copied into the returned structure: secrets must not
@@ -282,7 +273,7 @@ export function parseTrivyContentReport(
               scope: location.scope,
               ruleId,
               category: text(record.Type, 120),
-              severity: severityOf(record.Severity),
+              severity: normalizeSeverity(record.Severity),
               title: text(record.Title, 500) ?? ruleId,
               target: location.target,
               message: text(record.Message, 1000),
@@ -317,7 +308,7 @@ export function parseTrivyContentReport(
               scope: location.scope,
               ruleId,
               category: text(record.Category, 120),
-              severity: severityOf(record.Severity),
+              severity: normalizeSeverity(record.Severity),
               title: text(record.Title, 500) ?? ruleId,
               target: location.target,
               message: null,

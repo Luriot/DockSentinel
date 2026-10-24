@@ -349,12 +349,16 @@ export function scanStatusCounts(
   };
 }
 
-/** Keeps the most recent scan per image forever; older successful history follows retention. */
+/**
+ * Keeps the most recent scan and the most recent successful scan per image forever: the latest
+ * attempt may be a failure, and dropping the last success would orphan `images.last_success_scan_id`.
+ */
 export function pruneScans(db: Db, cutoff: string): number {
   const result = db.run(
     `DELETE FROM scans
      WHERE finished_at IS NOT NULL AND finished_at < ?
-       AND id NOT IN (SELECT MAX(id) FROM scans GROUP BY image_id, kind)`,
+       AND id NOT IN (SELECT MAX(id) FROM scans GROUP BY image_id, kind)
+       AND id NOT IN (SELECT MAX(id) FROM scans WHERE status = 'success' GROUP BY image_id, kind)`,
     [cutoff],
   );
   return result.changes;

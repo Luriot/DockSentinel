@@ -70,22 +70,29 @@ export interface TrivyOptions {
   bin: string;
   cacheDir: string;
   maxOutputBytes: number;
-  /** Hard ceiling from configuration; profile timeouts are clamped to it. */
+  /** Hard ceiling from configuration: quick is clamped to it, standard uses it. */
   maxTimeoutMs: number;
 }
 
 interface ProfileDefinition {
   vulnType: string;
   skipJavaDb: boolean;
-  timeoutMs: number;
+  /** Target timeout, or null to use the configured hard ceiling. */
+  timeoutMs: number | null;
 }
 
 const PROFILES: Record<ScanProfile, ProfileDefinition> = {
   // OS packages only, Java index skipped: fast and cheap, but does not cover language dependencies.
   quick: { vulnType: 'os', skipJavaDb: true, timeoutMs: 5 * 60_000 },
   // OS + language packages: covers application dependencies (npm, Python, PHP, Java, ...).
-  standard: { vulnType: 'os,library', skipJavaDb: false, timeoutMs: 15 * 60_000 },
+  standard: { vulnType: 'os,library', skipJavaDb: false, timeoutMs: null },
 };
+
+/** Quick keeps its short target; standard uses the configured ceiling, so large images can get more time. */
+export function scannerTimeoutMs(profile: ScanProfile, maxTimeoutMs: number): number {
+  const target = PROFILES[profile].timeoutMs;
+  return target === null ? maxTimeoutMs : Math.min(target, maxTimeoutMs);
+}
 
 const DB_ERROR_PATTERN =
   /(database error|db error|failed to download (the )?vulnerability db|failed to download vulnerability database|--skip-db-update cannot be specified|failed to update the vulnerability database)/i;
@@ -136,7 +143,7 @@ export class TrivyAdapter implements ScannerAdapter {
     if (input.mode === 'content') return this.runContent(input);
     const started = Date.now();
     const profile = PROFILES[input.profile];
-    const timeoutMs = Math.min(profile.timeoutMs, this.options.maxTimeoutMs);
+    const timeoutMs = scannerTimeoutMs(input.profile, this.options.maxTimeoutMs);
     const reportName = `report-${input.profile}.json`;
     const reportPath = join(input.workDir, reportName);
     const warnings: string[] = [];

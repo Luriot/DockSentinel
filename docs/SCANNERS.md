@@ -55,14 +55,16 @@ changing the identity to a parsed config digest would require reading/unpacking 
 | Profile | Trivy options | Coverage | Target timeout |
 | --- | --- | --- | --- |
 | Quick | `--vuln-type os`, `--skip-java-db-update` | Operating-system packages only | 5 minutes |
-| Standard | `--vuln-type os,library` | OS packages **and** language/application packages | 15 minutes |
+| Standard | `--vuln-type os,library` | OS packages **and** language/application packages | `SCAN_TIMEOUT_MS` (15 minutes by default) |
 
 These are genuinely different scans, not cosmetic labels. Quick is suitable for frequent rescans of OS
 packages; standard is the default first scan and the weekly/deep scan. Neither profile filters out
 unfixed findings: `--ignore-unfixed` is deliberately not used, because fix availability is displayed and
 used for prioritisation.
 
-A hard ceiling (`SCAN_TIMEOUT_MS`, default 15 minutes) applies to every profile.
+A hard ceiling (`SCAN_TIMEOUT_MS`, default 15 minutes) applies to every profile. Quick keeps its
+5-minute target; the standard profile uses the ceiling, so raising `SCAN_TIMEOUT_MS` gives large
+language-heavy images more time without a code change.
 
 ## Opt-in content scans
 

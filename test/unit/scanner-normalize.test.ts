@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseTrivyReport, InvalidReportError } from '../../src/scanner/normalize.ts';
+import { scannerTimeoutMs } from '../../src/scanner/trivy.ts';
 import { parseCvss, validateReference } from '../../src/scanner/validate.ts';
 
 function report(results: unknown, extra: Record<string, unknown> = {}): string {
@@ -169,4 +170,11 @@ test('CVSS and reference helpers reject malformed values', () => {
   assert.deepEqual(parseCvss({ nvd: { V3Score: '9.8' } }), { score: null, source: null, vector: null });
   assert.equal(validateReference('file:///etc/passwd'), null);
   assert.equal(validateReference('https://example.com/advisory'), 'https://example.com/advisory');
+});
+
+test('the standard profile honours the configured scan ceiling', () => {
+  assert.equal(scannerTimeoutMs('quick', 60 * 60_000), 5 * 60_000);
+  assert.equal(scannerTimeoutMs('quick', 60_000), 60_000);
+  assert.equal(scannerTimeoutMs('standard', 15 * 60_000), 15 * 60_000);
+  assert.equal(scannerTimeoutMs('standard', 45 * 60_000), 45 * 60_000);
 });

@@ -500,7 +500,11 @@ function describeFailure(error: unknown): { code: string; message: string; exitC
   }
   if (error instanceof DockerError) {
     const code =
-      error.code === 'unreachable' || error.code === 'timeout' ? 'docker_unreachable' : 'image_export_failed';
+      error.code === 'unreachable' || error.code === 'timeout'
+        ? 'docker_unreachable'
+        : error.code === 'insufficient_space'
+          ? 'insufficient_space'
+          : 'image_export_failed';
     return { code, message: `Docker operation failed: ${error.message}`, exitCode: null };
   }
   if (error instanceof ScanExecutionError) {

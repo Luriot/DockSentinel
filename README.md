@@ -189,7 +189,7 @@ the UI and stored in SQLite.
 | `SETUP_TOKEN` | random, logged once | First-run administrator token |
 | `DOCKSENTINEL_SECRET_KEY` | `DATA_DIR/secret.key` | 32-byte encryption key |
 | `TRIVY_BIN` / `TRIVY_CACHE_DIR` | `trivy` / `DATA_DIR/trivy-cache` | Scanner and cache |
-| `SCAN_TIMEOUT_MS` | `900000` | Hard scan timeout |
+| `SCAN_TIMEOUT_MS` | `900000` | Hard scan ceiling; the standard profile uses it (quick stays at 5 minutes) |
 | `SCAN_MAX_OUTPUT_BYTES` | `96 MiB` | Maximum report size |
 | `MAX_IMAGE_EXPORT_BYTES` | `8 GiB` | Maximum image archive size |
 | `SCAN_CONCURRENCY` | `2` | Concurrent scan ceiling |

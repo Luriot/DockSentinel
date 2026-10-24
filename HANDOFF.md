@@ -30,7 +30,8 @@ initial implementation, so the image and live Docker integration were verified a
 - Bundled Trivy in the production image; structured JSON only, never table parsing.
 - Two genuinely different profiles:
   - **quick** — OS packages only, Java index skipped, 5-minute target.
-  - **standard** — OS + language/application packages, 15-minute target.
+  - **standard** — OS + language/application packages; runs under `SCAN_TIMEOUT_MS` (default 15 minutes),
+    so large images can be given more time by raising that variable.
 - Images are exported from Docker by **immutable image ID**, then scanned via `trivy image --input`.
   The scanner never receives Docker credentials.
 - Scanner and vulnerability-database versions/timestamps recorded per scan.
@@ -41,7 +42,8 @@ initial implementation, so the image and live Docker integration were verified a
   reports all fail. They never look clean. Previous findings are preserved on failure.
 - Retry with bounded exponential backoff for transient failures; one scan per environment at a time;
   configurable global concurrency; no overlapping scans for the same image. While a retry is queued the
-  image keeps its last terminal scan status; only an exhausted retry budget marks it failed. Scan
+  image keeps its last terminal scan status; only an exhausted retry budget marks it failed. A full disk
+  (ENOSPC) is not retried, because every attempt would write another multi-gigabyte archive. Scan
   activity counters report cancelled scans separately from failed ones.
 - Recovery on restart: interrupted scans are requeued while budget remains, otherwise failed; scratch
   directories are cleaned.
@@ -90,7 +92,8 @@ initial implementation, so the image and live Docker integration were verified a
 ### Persistence, operations and security
 
 - SQLite (WAL, foreign keys, strict tables) with append-only versioned migrations, indexes, explicit
-  transactions, retention pruning and checkpointing.
+  transactions, retention pruning (the latest scan and the latest successful scan per image are always
+  kept) and checkpointing.
 - Single administrator, scrypt password hashing, hashed session tokens, 7-day sliding sessions,
   HttpOnly/SameSite=Strict/Secure-when-HTTPS cookies, CSRF header + Origin verification, login/setup rate
   limiting, setup token on first run, password change that invalidates other sessions.
@@ -229,7 +232,7 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | Security tests | Passed: 401/403/CSRF/Origin, SQL/XSS-shaped input, body limit, secret encryption and clearing, password change, no secret leakage; absolute-form and percent-encoded API auth bypass regression tests; login rechecks the hash after async verification |
 | `vite build` | Passed: `index.html` 0.85 kB, CSS 26.18 kB (6.10 kB gzip), JS 386.84 kB (104.52 kB gzip) |
 | `npm run test:ui` | **14/14 passing** (Chromium headless), screenshots captured under `test-results/screens` |
-| Backup script + UI | Verified: consistent DB snapshot + key copy; System Status can create/list backups and stage a restore; startup applies the staged restore with a pre-restore copy |
+| Backup script + UI | Verified: consistent DB snapshot + key copy; System Status can create/list backups and stage a restore; startup applies the staged restore with a pre-restore copy. Staging and startup both run `PRAGMA quick_check`, so a header-valid but corrupt backup is refused instead of replacing the database |
 | Finding triage/export | Verified: acknowledge/ignore/false-positive actions, suppression from default counts/alerts, CSV formula mitigation and JSON export |
 | CI workflow | `.github/workflows/test.yml` passed with the publish-gate job on Node 24.12 in run 40092395722 |
 | Unraid/CA package | Canonical `templates/docksentinel.xml`, `ca_profile.xml`, icon and metadata prepared; submission/listing not performed by this agent |

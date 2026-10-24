@@ -11,6 +11,7 @@ export type DockerErrorCode =
   | 'http_error'
   | 'invalid_response'
   | 'response_too_large'
+  | 'insufficient_space'
   | 'unsupported_address';
 
 export class DockerError extends Error {
@@ -332,7 +333,9 @@ export class DockerClient {
         res.on('error', (error) => fail(new DockerError('unreachable', `Image export failed: ${error.message}`)));
         out.on('error', (error) => {
           controller.abort();
-          fail(new DockerError('unreachable', `Unable to write image archive: ${error.message}`));
+          // A full disk is not transient: retrying would only write another multi-GB archive.
+          const code = (error as NodeJS.ErrnoException).code === 'ENOSPC' ? 'insufficient_space' : 'unreachable';
+          fail(new DockerError(code, `Unable to write image archive: ${error.message}`));
         });
         out.on('finish', () => {
           if (settled) return;

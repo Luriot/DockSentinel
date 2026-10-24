@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import type { Config } from './config.ts';
 import { Db } from './db/index.ts';
 import { nowIso } from './util/time.ts';
@@ -83,6 +84,24 @@ export function listBackups(dataDir: string): BackupInfo[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/**
+ * Rejects a copy whose header is valid but whose pages are corrupt. A staged file replaces the live
+ * database at the next start, so it must be readable before anything is swapped.
+ */
+function assertHealthySqlite(file: string, label: string): void {
+  let probe: DatabaseSync | null = null;
+  try {
+    probe = new DatabaseSync(file);
+    const row = probe.prepare('PRAGMA quick_check').get() as Record<string, unknown> | undefined;
+    const verdict = row ? Object.values(row)[0] : 'ok';
+    if (verdict !== 'ok') throw new Error(String(verdict));
+  } catch (error) {
+    throw new Error(`${label} is not a healthy SQLite database: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    probe?.close();
+  }
+}
+
 export function stageRestore(dataDir: string, dbPath: string, name: string): string {
   if (!/^[A-Za-z0-9._-]+\.db$/.test(name) || name.includes('..')) throw new Error('Invalid backup name');
   const source = resolve(backupDirectory(dataDir), name);
@@ -92,6 +111,7 @@ export function stageRestore(dataDir: string, dbPath: string, name: string): str
   if (!existsSync(source)) throw new Error('Backup not found');
   const header = readFileSync(source).subarray(0, 16).toString('utf8');
   if (header !== 'SQLite format 3\u0000') throw new Error('The selected file is not a SQLite database');
+  assertHealthySqlite(source, 'The selected backup');
   const staged = `${dbPath}.restore`;
   copyFileSync(source, staged);
   return staged;
@@ -103,6 +123,7 @@ export function applyPendingRestore(config: Pick<Config, 'dataDir' | 'dbPath'>):
   if (!existsSync(staged)) return null;
   const header = readFileSync(staged).subarray(0, 16).toString('utf8');
   if (header !== 'SQLite format 3\u0000') throw new Error(`Staged restore ${staged} is not a SQLite database`);
+  assertHealthySqlite(staged, `Staged restore ${staged}`);
   const dir = backupDirectory(config.dataDir);
   mkdirSync(dir, { recursive: true });
   const safety = join(dir, `pre-restore-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
