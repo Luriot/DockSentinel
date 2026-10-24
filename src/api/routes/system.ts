@@ -254,9 +254,14 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
     },
     async (req) => {
       const { name } = req.body as { name: string };
-      stageRestore(ctx.config.dataDir, ctx.config.dbPath, name);
+      const stagedPath = stageRestore(ctx.config.dataDir, ctx.config.dbPath, name);
       ctx.log.warn({ backup: name }, 'database restore staged; restart required');
-      return { ok: true, restartRequired: true, message: 'Restart DockSentinel to apply the restore.' };
+      return {
+        ok: true,
+        restartRequired: true,
+        stagedPath,
+        message: 'Restart DockSentinel to apply the restore.',
+      };
     },
   );
 

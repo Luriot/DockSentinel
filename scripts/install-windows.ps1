@@ -3,8 +3,7 @@
 param(
     [string]$DataDir = '',
     [switch]$NoShortcut,
-    [switch]$NoStart,
-    [switch]$UseSystemNode
+    [switch]$NoStart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,17 +79,7 @@ try {
 
     New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 
-    if ($UseSystemNode) {
-        $systemNode = (Get-Command node.exe -ErrorAction SilentlyContinue)
-        if (-not $systemNode -or -not (Test-NodeRuntime $systemNode.Source)) {
-            throw "No supported Node.js was found. Run the installer without -UseSystemNode to install a private runtime."
-        }
-        $NodeExe = $systemNode.Source
-        $NpmCmd = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
-        if (-not $NpmCmd) { throw "npm.cmd was not found next to the system Node.js." }
-    } else {
-        Install-PortableNode
-    }
+    Install-PortableNode
 
     $env:PATH = "$(Split-Path -Parent $NodeExe);$env:PATH"
     $env:DATA_DIR = $DataDir

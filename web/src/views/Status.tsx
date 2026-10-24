@@ -16,7 +16,7 @@ import {
 import { formatBytes, formatDate, relativeTime } from '../format.ts';
 
 export function Status() {
-  const { data, error, loading, refresh } = useApi<SystemStatusData>('/system/status', { intervalMs: 30_000 });
+  const { data, error, loading, refresh } = useApi<SystemStatusData>('/system/status');
   const toast = useToast();
   const [busy, setBusy] = useState<'backup' | 'update' | null>(null);
   const [update, setUpdate] = useState<UpdateStatus | null>(null);

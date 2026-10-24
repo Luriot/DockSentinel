@@ -53,7 +53,9 @@ test('system status exposes health, disk, backups and update-check actions', asy
       payload: { name: afterBody.backups.items[0]?.name },
     });
     assert.equal(restore.statusCode, 200, restore.body);
-    assert.equal(restore.json<{ restartRequired: boolean }>().restartRequired, true);
+    const restoreBody = restore.json<{ restartRequired: boolean; stagedPath: string }>();
+    assert.equal(restoreBody.restartRequired, true);
+    assert.ok(restoreBody.stagedPath.endsWith('.restore'));
   } finally {
     await harness.close();
   }

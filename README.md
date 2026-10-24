@@ -73,9 +73,9 @@ docker pull ghcr.io/luriot/docksentinel:latest
 
 The socket is mapped read-only, but Docker access is still **effectively host-root**. Read the
 [Docker security notes](docs/SECURITY.md#docker-socket-access) before deploying on a host that matters.
-If discovery fails with permission denied, set `DOCKER_GID` to the socket's group
-(`stat -c '%g' /var/run/docker.sock`). Docker Desktop presents the Linux socket as `root:root` mode
-`0660`, so container smoke tests need `PGID=0` or `--group-add 0`.
+If discovery fails with permission denied on Linux/Unraid, add the socket group as a supplementary group
+in Unraid Extra Parameters (`--group-add=<gid>`). Docker Desktop presents a different socket arrangement;
+the native Windows installer detects its named pipe automatically.
 
 ## Run natively (without the DockSentinel container)
 
@@ -168,8 +168,7 @@ npm test               # unit + integration; real Trivy tests skip if unavailabl
 npx playwright install chromium
 npm run test:ui
 npm run build
-npm start
-```
+
 
 CI runs typecheck, backend tests, build and UI tests on pull requests and feature branches. Pushes to
 `main` are tested by the publish workflow before an image is built. CLI backup remains available with
