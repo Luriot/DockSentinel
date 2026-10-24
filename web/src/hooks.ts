@@ -9,8 +9,8 @@ export interface ApiState<T> {
 }
 
 /**
- * Fetches JSON from the API. Stale data is kept visible when a refresh fails, and optional polling
- * is used where the view is expected to update on its own (overview, scan activity).
+ * Stale data stays visible when a refresh fails; polling is opt-in via intervalMs for views that
+ * are expected to update on their own (overview, scan activity).
  */
 export function useApi<T>(path: string | null, options: { intervalMs?: number } = {}): ApiState<T> {
   const [state, setState] = useState<{ data: T | null; error: ApiError | null; loading: boolean }>({
@@ -46,7 +46,6 @@ export function useApi<T>(path: string | null, options: { intervalMs?: number } 
     return () => {
       cancelled = true;
     };
-    // options.enabled is intentionally part of the dependency list; callers pass simple values.
   }, [path, revision]);
 
   useEffect(() => {

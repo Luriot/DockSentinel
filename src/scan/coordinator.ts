@@ -441,8 +441,6 @@ export class ScanCoordinator {
       exitCode: info.exitCode,
       retryAt,
     });
-    if (scan.kind === 'vulnerability') this.updateImageScanStatus(scan, 'failed');
-
     if (retryAt) {
       this.log.warn(
         { scanId: scan.id, imageId: scan.imageId, code, attempt: scan.attempts, retryAt },
@@ -450,6 +448,9 @@ export class ScanCoordinator {
       );
       return;
     }
+    // Only a terminal failure changes the status shown for the image: while a retry is still queued
+    // the last successful result remains the truth, and the scan row already shows the pending retry.
+    if (scan.kind === 'vulnerability') this.updateImageScanStatus(scan, 'failed');
 
     this.log.error({ scanId: scan.id, imageId: scan.imageId, code, error: info.message }, 'scan failed permanently');
     if (scan.kind === 'content') return;

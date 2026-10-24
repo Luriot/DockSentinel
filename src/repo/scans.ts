@@ -335,7 +335,8 @@ export function scanStatusCounts(
        SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS queued,
        SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running,
        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success,
-       SUM(CASE WHEN status IN ('failed','cancelled') THEN 1 ELSE 0 END) AS failed
+       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+       SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
      FROM scans WHERE kind = ? AND queued_at >= ?`,
     [kind, since],
   );
@@ -344,7 +345,7 @@ export function scanStatusCounts(
     running: Number(row?.running ?? 0),
     success: Number(row?.success ?? 0),
     failed: Number(row?.failed ?? 0),
-    cancelled: 0,
+    cancelled: Number(row?.cancelled ?? 0),
   };
 }
 

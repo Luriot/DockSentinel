@@ -236,7 +236,6 @@ export class AlertService {
     };
   }
 
-  /** A finding alerts when any monitored container using the image crosses its resolved threshold. */
   private isSuppressed(findingId: number): boolean {
     return Boolean(
       this.db.get("SELECT 1 AS suppressed FROM findings WHERE id = ? AND triage_status IN ('ignored','false_positive')", [

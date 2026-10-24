@@ -23,7 +23,6 @@ export function localTrivyPath(dataDir = nativeDataDir()): string {
   return join(trivyToolsDir(dataDir), process.platform === 'win32' ? 'trivy.exe' : 'trivy');
 }
 
-/** Uses an explicit TRIVY_BIN, then the locally installed copy, then PATH. */
 export function resolveTrivyBin(dataDir = nativeDataDir()): string {
   if (process.env.TRIVY_BIN && process.env.TRIVY_BIN.trim() !== '') return process.env.TRIVY_BIN;
   const local = localTrivyPath(dataDir);

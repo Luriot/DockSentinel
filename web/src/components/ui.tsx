@@ -178,10 +178,6 @@ export const IconSkull = (props: IconProps) => (
   </svg>
 );
 
-// ---------------------------------------------------------------------------
-// Badges
-// ---------------------------------------------------------------------------
-
 export function SeverityBadge({ severity, count }: { severity: Severity | string; count?: number }) {
   return (
     <span className={`badge sev-${severity}`}>
@@ -302,10 +298,6 @@ export function SeverityPills({
     </span>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Layout blocks
-// ---------------------------------------------------------------------------
 
 export function EmptyState({
   icon,
@@ -432,11 +424,6 @@ export function Field({
     </div>
   );
 }
-
-
-// ---------------------------------------------------------------------------
-// Dialogs
-// ---------------------------------------------------------------------------
 
 function useDialogBehavior(ref: React.RefObject<HTMLElement | null>, onClose: () => void): void {
   const closeRef = useRef(onClose);
@@ -616,10 +603,6 @@ export function ConfirmDialog({
     </Modal>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Toasts
-// ---------------------------------------------------------------------------
 
 type ToastKind = 'info' | 'success' | 'error';
 interface ToastEntry {

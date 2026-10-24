@@ -24,7 +24,6 @@ export function decryptSecret(payload: string, key: Buffer): string {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
 }
 
-/** Returns the plaintext, or null when the payload is missing or cannot be decrypted with this key. */
 export function tryDecryptSecret(payload: string | null | undefined, key: Buffer): string | null {
   if (!payload) return null;
   try {

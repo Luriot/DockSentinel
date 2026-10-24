@@ -40,7 +40,9 @@ initial implementation, so the image and live Docker integration were verified a
 - Strict parsing: malformed/truncated output, empty reports, timeouts, non-zero exits and oversized
   reports all fail. They never look clean. Previous findings are preserved on failure.
 - Retry with bounded exponential backoff for transient failures; one scan per environment at a time;
-  configurable global concurrency; no overlapping scans for the same image.
+  configurable global concurrency; no overlapping scans for the same image. While a retry is queued the
+  image keeps its last terminal scan status; only an exhausted retry budget marks it failed. Scan
+  activity counters report cancelled scans separately from failed ones.
 - Recovery on restart: interrupted scans are requeued while budget remains, otherwise failed; scratch
   directories are cleaned.
 - Manual scans from images/containers, scheduled scans, first-scan-on-discovery, and per-environment

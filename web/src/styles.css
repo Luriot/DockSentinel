@@ -120,8 +120,6 @@ p {
   left: 0;
 }
 
-/* ---------- App shell ---------- */
-
 .app {
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr);
@@ -398,8 +396,6 @@ p {
   position: relative;
 }
 
-/* ---------- Typography / helpers ---------- */
-
 .mono {
   font-family: var(--mono);
   font-size: 12px;
@@ -498,8 +494,6 @@ p {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
 }
-
-/* ---------- Cards & stats ---------- */
 
 .card {
   background: var(--panel);
@@ -607,8 +601,6 @@ p {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 14px;
 }
-
-/* ---------- Badges & status ---------- */
 
 .badge {
   display: inline-flex;
@@ -789,8 +781,6 @@ p {
   text-transform: capitalize;
 }
 
-/* ---------- Buttons ---------- */
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -869,8 +859,6 @@ p {
   flex-wrap: wrap;
   align-items: center;
 }
-
-/* ---------- Forms ---------- */
 
 .field {
   display: flex;
@@ -981,8 +969,6 @@ p {
   color: #8ef0c2;
   font-size: 12.5px;
 }
-
-/* ---------- Filters & tables ---------- */
 
 .filters {
   display: flex;
@@ -1179,8 +1165,6 @@ table.table tbody tr.clickable:hover {
   font-size: 12px;
 }
 
-/* ---------- Skeleton ---------- */
-
 .skeleton {
   position: relative;
   overflow: hidden;
@@ -1217,8 +1201,6 @@ table.table tbody tr.clickable:hover {
   gap: 10px;
   padding: 16px;
 }
-
-/* ---------- Drawer & modal ---------- */
 
 .overlay {
   position: fixed;
@@ -1402,8 +1384,6 @@ table.table tbody tr.clickable:hover {
   color: var(--text-muted);
 }
 
-/* ---------- Toasts ---------- */
-
 .toast-stack {
   position: fixed;
   right: 20px;
@@ -1444,8 +1424,6 @@ table.table tbody tr.clickable:hover {
     opacity: 0;
   }
 }
-
-/* ---------- Auth ---------- */
 
 .auth {
   min-height: 100vh;
@@ -1567,8 +1545,6 @@ table.table tbody tr.clickable:hover {
   line-height: 1.5;
 }
 
-/* ---------- Environment cards ---------- */
-
 .env-card {
   display: flex;
   flex-direction: column;
@@ -1625,8 +1601,6 @@ table.table tbody tr.clickable:hover {
   flex-wrap: wrap;
   margin-top: auto;
 }
-
-/* ---------- Misc ---------- */
 
 .spinner {
   width: 14px;
@@ -1776,8 +1750,6 @@ table.table tbody tr.clickable:hover {
   color: var(--text-muted);
 }
 
-/* ---------- Responsive ---------- */
-
 @media (max-width: 1180px) {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1871,7 +1843,6 @@ table.table tbody tr.clickable:hover {
   }
 }
 
-/* First-run welcome */
 .welcome {
   display: grid;
   gap: 16px;

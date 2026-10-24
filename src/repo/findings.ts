@@ -629,10 +629,6 @@ export function recentFindingEvents(db: Db, limit = 20): (FindingEventView & { i
     }));
 }
 
-/** Findings that became KEV-listed and are still open. Used by the KEV sync to raise alerts. */
-
-
-
 /** Findings older than the retention window whose image is no longer running anywhere. */
 export function pruneResolvedFindings(db: Db, cutoff: string): number {
   const result = db.run(
