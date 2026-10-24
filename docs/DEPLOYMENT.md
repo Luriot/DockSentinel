@@ -123,6 +123,8 @@ together.
 | `HOST` / `PORT` | `0.0.0.0` / `8080` | Listener |
 | `LOG_LEVEL` | `info` | JSON logs to stdout and to dated files |
 | `LOG_RETENTION_DAYS` | `14` | Days of `DATA_DIR/logs/docksentinel-YYYY-MM-DD.log` kept |
+| `BACKUP_INTERVAL_HOURS` | `24` | Automatic snapshot interval; `0` disables it |
+| `BACKUP_RETENTION` | `3` | Snapshots kept in `DATA_DIR/backups` |
 | `TRUST_PROXY` | `false` | Enable only behind a trusted proxy |
 | `COOKIE_SECURE` | `auto` | `always` when TLS terminates at a proxy |
 | `SETUP_TOKEN` | random | Logged once when unset |
@@ -297,6 +299,13 @@ secrets unreadable. The CLI `npm run backup` remains available and copies the ke
 4. Check `/api/health` and the Settings page (scanner version, schema version) after the upgrade.
 
 ## Backup
+
+A snapshot is taken automatically every `BACKUP_INTERVAL_HOURS` (24 by default): at startup when the
+newest snapshot is older than that, and once a day afterwards. Only the newest `BACKUP_RETENTION`
+snapshots (3 by default) are kept; older snapshots and their key copies are removed. Set
+`BACKUP_INTERVAL_HOURS=0` to disable automatic snapshots.
+
+Manual snapshots remain available:
 
 ```bash
 docker exec docksentinel node scripts/backup.ts

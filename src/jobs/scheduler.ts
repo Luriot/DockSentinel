@@ -1,5 +1,6 @@
 import type { Db } from '../db/index.ts';
 import type { Logger } from '../logger.ts';
+import type { Config } from '../config.ts';
 import type { AppSettings } from '../repo/settings.ts';
 import type { DiscoveryService } from '../discovery.ts';
 import type { ScanCoordinator } from '../scan/coordinator.ts';
@@ -8,6 +9,7 @@ import type { KevService } from '../intel/kev-service.ts';
 import { listEnvironments } from '../repo/environments.ts';
 import { ageHours, isoAfter, nowIso } from '../util/time.ts';
 import { runMaintenance } from './maintenance.ts';
+import { ensureAutoBackup } from '../backup.ts';
 import type { ScanProfile } from '../scanner/trivy.ts';
 
 interface DueImageRow {
@@ -33,6 +35,7 @@ export class Scheduler {
   private readonly alerts: AlertService;
   private readonly kev: KevService;
   private readonly getSettings: () => AppSettings;
+  private readonly config: Config;
   private timer: NodeJS.Timeout | null = null;
   private busy = false;
   private stopped = false;
@@ -46,6 +49,7 @@ export class Scheduler {
     alerts: AlertService;
     kev: KevService;
     getSettings: () => AppSettings;
+    config: Config;
   }) {
     this.db = deps.db;
     this.log = deps.log;
@@ -54,6 +58,7 @@ export class Scheduler {
     this.alerts = deps.alerts;
     this.kev = deps.kev;
     this.getSettings = deps.getSettings;
+    this.config = deps.config;
   }
 
   start(intervalMs = 60_000): void {
@@ -204,6 +209,26 @@ export class Scheduler {
       this.log.error(
         { err: error instanceof Error ? error.message : String(error) },
         'retention maintenance failed',
+      );
+    }
+    this.runAutomaticBackup();
+  }
+
+  private runAutomaticBackup(): void {
+    try {
+      const result = ensureAutoBackup(this.config, {
+        intervalHours: this.config.backupIntervalHours,
+        retention: this.config.backupRetention,
+      });
+      if (result.created) {
+        this.log.info({ databasePath: result.databasePath, pruned: result.pruned }, 'automatic database backup created');
+      } else if (result.pruned > 0) {
+        this.log.info({ pruned: result.pruned }, 'old database backups removed');
+      }
+    } catch (error) {
+      this.log.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'automatic database backup failed',
       );
     }
   }

@@ -134,6 +134,9 @@ already provides a dependency-free deployment. On unsupported platforms, install
 - The setup token is printed once in the logs (or supplied with `SETUP_TOKEN`).
 - Logs go to stdout and to `DATA_DIR/logs/docksentinel-YYYY-MM-DD.log` (one text file per day, kept for
   `LOG_RETENTION_DAYS`, 14 by default).
+- A database snapshot is taken automatically every `BACKUP_INTERVAL_HOURS` (24 by default) and the
+  newest `BACKUP_RETENTION` snapshots (3 by default) are kept in `DATA_DIR/backups`; the System Status
+  page can also create and restore backups on demand.
 - Native mode: `DATA_DIR` persists settings, credentials, history and the scanner cache across restarts.
 - Docker mode: persist `/data` as a volume; back up the database and `secret.key` together.
 - Graceful shutdown handles `SIGINT`/`SIGTERM`; interrupted scans are recovered on the next start.
@@ -187,6 +190,8 @@ the UI and stored in SQLite.
 | `HOST` / `PORT` | `0.0.0.0` / `8080` (`127.0.0.1` for native launcher) | HTTP listener |
 | `LOG_LEVEL` | `info` | Structured JSON logs |
 | `LOG_RETENTION_DAYS` | `14` | Days of dated files kept in `DATA_DIR/logs` |
+| `BACKUP_INTERVAL_HOURS` | `24` | Automatic database snapshot interval (`0` disables it) |
+| `BACKUP_RETENTION` | `3` | Snapshots kept in `DATA_DIR/backups` |
 | `TRUST_PROXY` | `false` | Honour `X-Forwarded-*` from a trusted proxy |
 | `COOKIE_SECURE` | `auto` | `always` / `never` / `auto` |
 | `SETUP_TOKEN` | random, logged once | First-run administrator token |

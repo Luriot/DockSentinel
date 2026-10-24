@@ -39,6 +39,8 @@
   <Config Name="Setup token" Target="SETUP_TOKEN" Default="" Description="Optional first-run setup token. Leave blank to have a random token printed in the container log on first start." Type="Variable" Display="advanced" Required="false" Mask="true"/>
   <Config Name="Log level" Target="LOG_LEVEL" Default="info" Description="trace, debug, info, warn, error or fatal." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="Log retention days" Target="LOG_RETENTION_DAYS" Default="14" Description="Days of dated text logs kept in /data/logs (one file per day)." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Backup interval (hours)" Target="BACKUP_INTERVAL_HOURS" Default="24" Description="Automatic database snapshot interval in hours; 0 disables automatic backups." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Backup retention" Target="BACKUP_RETENTION" Default="3" Description="Number of snapshots kept in /data/backups; older ones are removed." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="Trust proxy" Target="TRUST_PROXY" Default="false" Description="Set true only behind a trusted reverse proxy that sets X-Forwarded-* headers." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="Cookie secure" Target="COOKIE_SECURE" Default="auto" Description="auto, always or never. Use always when serving over HTTPS." Type="Variable" Display="advanced" Required="false" Mask="false"/>
 </Container>

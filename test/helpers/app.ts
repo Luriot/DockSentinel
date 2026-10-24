@@ -46,7 +46,7 @@ export function createTestContext(config: Config, db: Db, log: ReturnType<typeof
   const discovery = new DiscoveryService(db, config.secretKey, log);
   const coordinator = new ScanCoordinator({ db, config, log, alerts, getSettings });
   const dispatcher = new NotificationDispatcher(db, log, getSettings);
-  const scheduler = new Scheduler({ db, log, discovery, coordinator, alerts, kev, getSettings });
+  const scheduler = new Scheduler({ db, log, discovery, coordinator, alerts, kev, getSettings, config });
   return {
     db,
     config,

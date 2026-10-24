@@ -103,7 +103,9 @@ initial implementation, so the image and live Docker integration were verified a
   JSON-schema input validation, 512 KiB
   body limit, parameterised SQL, no arbitrary command execution.
 - Health endpoint with DB check, graceful shutdown, bounded retries, endpoint isolation.
-- Backup script (`VACUUM INTO` + key copy) and administrator password-reset script.
+- Automatic database snapshots (`VACUUM INTO` + key copy) every `BACKUP_INTERVAL_HOURS` (24 by default,
+  0 disables), keeping `BACKUP_RETENTION` snapshots (3 by default); manual backup and
+  administrator password-reset scripts remain available.
 - Native launcher with per-user data folder, loopback default, actionable preflight errors, managed
   checksum-verified Trivy installer and Docker Desktop named-pipe support.
 - One-click local Docker detection and creation (`GET /api/environments/detect`, `POST /api/environments/local`)

@@ -70,6 +70,10 @@ export interface Config {
   /** Directory of dated text log files; also mirrored to stdout. */
   readonly logDir: string;
   readonly logRetentionDays: number;
+  /** Automatic database snapshot interval in hours; 0 disables it. */
+  readonly backupIntervalHours: number;
+  /** Number of database snapshots kept in DATA_DIR/backups. */
+  readonly backupRetention: number;
   readonly trustProxy: boolean;
   readonly cookieSecure: CookieSecureMode;
   readonly trivyBin: string;
@@ -103,6 +107,8 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     logLevel: overrides.logLevel ?? process.env.LOG_LEVEL ?? (isTest ? 'silent' : 'info'),
     logDir: overrides.logDir ?? resolve(dataDir, 'logs'),
     logRetentionDays: overrides.logRetentionDays ?? intEnv('LOG_RETENTION_DAYS', 14, 1, 365),
+    backupIntervalHours: overrides.backupIntervalHours ?? intEnv('BACKUP_INTERVAL_HOURS', 24, 0, 168),
+    backupRetention: overrides.backupRetention ?? intEnv('BACKUP_RETENTION', 3, 1, 20),
     trustProxy: overrides.trustProxy ?? boolEnv('TRUST_PROXY', false),
     cookieSecure: overrides.cookieSecure ?? cookieSecure,
     trivyBin: overrides.trivyBin ?? process.env.TRIVY_BIN ?? 'trivy',

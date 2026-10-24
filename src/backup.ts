@@ -36,7 +36,8 @@ export function backupDirectory(dataDir: string): string {
 export function createBackup(config: Pick<Config, 'dataDir' | 'dbPath'>, targetDir = backupDirectory(config.dataDir)): BackupResult {
   mkdirSync(targetDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 23);
-  const databasePath = join(targetDir, `docksentinel-${stamp}-${randomBytes(2).toString('hex')}.db`);
+  const suffix = randomBytes(2).toString('hex');
+  const databasePath = join(targetDir, `docksentinel-${stamp}-${suffix}.db`);
   if (existsSync(databasePath)) throw new Error(`Refusing to overwrite existing backup ${databasePath}`);
 
   const db = Db.open(config.dbPath);
@@ -50,7 +51,8 @@ export function createBackup(config: Pick<Config, 'dataDir' | 'dbPath'>, targetD
   const keySource = join(config.dataDir, 'secret.key');
   let keyPath: string | null = null;
   if (!process.env.DOCKSENTINEL_SECRET_KEY && existsSync(keySource)) {
-    keyPath = join(targetDir, `secret-${stamp}-${randomBytes(2).toString('hex')}.key`);
+    // Same suffix as the snapshot, so pruning can pair a backup with its key.
+    keyPath = join(targetDir, `secret-${stamp}-${suffix}.key`);
     copyFileSync(keySource, keyPath);
   }
   return {
@@ -82,6 +84,68 @@ export function listBackups(dataDir: string): BackupInfo[] {
       };
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Keeps the newest `keep` snapshots and removes the rest, with their key files (paired by the shared
+ * suffix). Best effort: a file that cannot be removed is retried on the next run.
+ */
+export function pruneBackups(dataDir: string, keep: number): number {
+  const dir = backupDirectory(dataDir);
+  const backups = listBackups(dataDir);
+  let names: string[] = [];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  for (const backup of backups.slice(Math.max(0, keep))) {
+    try {
+      rmSync(join(dir, backup.name));
+      removed += 1;
+    } catch {
+      // Retried next time.
+    }
+    const suffix = /-([0-9a-f]{4})\.db$/.exec(backup.name)?.[1];
+    if (!suffix) continue;
+    const keyName = names.find((name) => /^secret-/.test(name) && name.endsWith(`-${suffix}.key`));
+    if (!keyName) continue;
+    try {
+      rmSync(join(dir, keyName));
+      removed += 1;
+    } catch {
+      // Retried next time.
+    }
+  }
+  return removed;
+}
+
+export interface AutoBackupOptions {
+  /** Snapshot interval in hours; 0 disables automatic backups. */
+  intervalHours: number;
+  /** Number of snapshots kept, the newest first. */
+  retention: number;
+}
+
+export interface AutoBackupResult {
+  created: boolean;
+  pruned: number;
+  databasePath: string | null;
+}
+
+/** Takes a snapshot when the newest one is older than the interval, then applies retention. */
+export function ensureAutoBackup(
+  config: Pick<Config, 'dataDir' | 'dbPath'>,
+  options: AutoBackupOptions,
+  now: Date = new Date(),
+): AutoBackupResult {
+  if (options.intervalHours <= 0) return { created: false, pruned: 0, databasePath: null };
+  const [newest] = listBackups(config.dataDir);
+  const due = !newest || now.getTime() - Date.parse(newest.createdAt) >= options.intervalHours * 3_600_000;
+  const databasePath = due ? createBackup(config).databasePath : null;
+  const pruned = pruneBackups(config.dataDir, options.retention);
+  return { created: databasePath !== null, pruned, databasePath };
 }
 
 /**

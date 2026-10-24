@@ -40,7 +40,13 @@ function terminateTree(child: ChildProcess): void {
   if (!child.pid) return;
   if (process.platform === 'win32') {
     try {
-      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', shell: false });
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        shell: false,
+      });
+      // A missing taskkill must not crash the app; fall back to killing the direct child.
+      killer.on('error', () => child.kill('SIGKILL'));
+      killer.unref();
     } catch {
       child.kill('SIGKILL');
     }

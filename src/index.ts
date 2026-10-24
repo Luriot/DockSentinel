@@ -56,7 +56,7 @@ export async function start(): Promise<StartedServer> {
   const discovery = new DiscoveryService(db, config.secretKey, log);
   const coordinator = new ScanCoordinator({ db, config, log, alerts, getSettings });
   const dispatcher = new NotificationDispatcher(db, log, getSettings);
-  const scheduler = new Scheduler({ db, log, discovery, coordinator, alerts, kev, getSettings });
+  const scheduler = new Scheduler({ db, log, discovery, coordinator, alerts, kev, getSettings, config });
 
   const setupToken = createSetupToken(db, config, log);
   const ctx: AppContext = {

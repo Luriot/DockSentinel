@@ -106,7 +106,9 @@ cd /d "$ProjectRoot"
 "$NodeExe" "scripts\native.ts" --open
 if errorlevel 1 pause
 "@
-    Set-Content -LiteralPath $Launcher -Value $launcherText -Encoding ASCII
+    # Default (the system code page) keeps accented folder names readable by cmd.exe; ASCII would
+    # replace them with "?" and break the launcher for user paths such as C:\Users\Jérôme.
+    Set-Content -LiteralPath $Launcher -Value $launcherText -Encoding Default
 
     if (-not $NoShortcut) {
         try {

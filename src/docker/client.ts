@@ -147,7 +147,8 @@ function buildRequestOptions(
             cert: connection.tlsCert || undefined,
             key: connection.tlsKey || undefined,
             rejectUnauthorized: !connection.skipVerify,
-            servername: target.hostname,
+            // SNI must not be an IP address, so LAN endpoints addressed by IP omit it.
+            servername: target.hostname && !isIP(target.hostname) ? target.hostname : undefined,
           }
         : {}),
     },
