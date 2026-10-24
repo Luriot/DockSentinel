@@ -34,7 +34,9 @@ export interface ContentFindingView extends ContentFindingRecord {
 }
 
 export function contentIdentity(finding: Pick<NormalizedContentFinding, 'kind' | 'scope' | 'ruleId' | 'target' | 'startLine'>): string {
-  return [finding.kind, finding.scope, finding.ruleId, finding.target, finding.startLine ?? 0].join('\u0000');
+  // JSON avoids embedded NUL delimiters: node:sqlite can truncate embedded NULs when binding
+  // text, which made the stored identity differ from the in-memory identity on some Node versions.
+  return JSON.stringify([finding.kind, finding.scope, finding.ruleId, finding.target, finding.startLine ?? 0]);
 }
 
 /** Counts content findings in the same shape used by scan rows; fixable is always zero. */

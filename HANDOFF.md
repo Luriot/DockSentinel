@@ -218,6 +218,7 @@ with a relative archive name (plus a defensive prefix strip) and is covered by a
 | --- | --- |
 | `npm run typecheck` | Passed (strict, `noUnusedLocals`, backend + web) |
 | `npm test` | **82/82 passing** in ~66 s |
+| Node 24.12 compatibility | Full backend suite, typecheck, build and **14/14 UI tests** passed under Node 24.12.0; content identities now use JSON instead of embedded NULs |
 | Real Trivy end-to-end test | Passed; synthetic Debian 11 image produced **61 findings** (3 critical, 10 high, 26 medium, 20 low, 2 unknown); failure-preservation and cleanup assertions passed |
 | Docker discovery tests | Passed: 3 containers, 2 images, `0.0.0.0:8080` → potential exposure, declared label → confirmed, stopped → unknown, non-DockSentinel labels discarded, independent endpoint failure, only GET requests |
 | Notification tests | Passed: one grouped alert per scan, dedupe, ntfy Bearer header, retry/backoff, test success/failure, disabled mode |

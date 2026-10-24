@@ -285,6 +285,14 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE findings ADD COLUMN triaged_at TEXT;
     `,
   },
+  {
+    version: 4,
+    name: 'normalize content finding identities',
+    sql: `
+      UPDATE content_findings
+      SET identity = json_array(kind, scope, rule_id, target, COALESCE(start_line, 0));
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;
