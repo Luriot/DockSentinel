@@ -1,9 +1,15 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { availableParallelism } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Hard ceiling for simultaneous scans: the CPUs available to this process (capped at 8). */
+function defaultScanConcurrency(): number {
+  return Math.min(8, Math.max(1, availableParallelism()));
+}
 
 function readVersion(): string {
   try {
@@ -113,7 +119,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     cookieSecure: overrides.cookieSecure ?? cookieSecure,
     trivyBin: overrides.trivyBin ?? process.env.TRIVY_BIN ?? 'trivy',
     trivyCacheDir: overrides.trivyCacheDir ?? process.env.TRIVY_CACHE_DIR ?? resolve(dataDir, 'trivy-cache'),
-    scanConcurrency: overrides.scanConcurrency ?? intEnv('SCAN_CONCURRENCY', 2, 1, 8),
+    scanConcurrency: overrides.scanConcurrency ?? intEnv('SCAN_CONCURRENCY', defaultScanConcurrency(), 1, 8),
     scanTimeoutMs:
       overrides.scanTimeoutMs ?? intEnv('SCAN_TIMEOUT_MS', 15 * 60 * 1000, 10_000, 60 * 60 * 1000),
     maxOutputBytes:

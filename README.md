@@ -200,7 +200,7 @@ the UI and stored in SQLite.
 | `SCAN_TIMEOUT_MS` | `900000` | Hard scan ceiling; the standard profile uses it (quick stays at 5 minutes) |
 | `SCAN_MAX_OUTPUT_BYTES` | `96 MiB` | Maximum report size |
 | `MAX_IMAGE_EXPORT_BYTES` | `8 GiB` | Maximum image archive size |
-| `SCAN_CONCURRENCY` | `2` | Concurrent scan ceiling |
+| `SCAN_CONCURRENCY` | available CPUs (max 8) | Optional hard ceiling for simultaneous scans |
 
 Container permissions: `PUID`/`PGID` control the runtime user; `DOCKER_GID` grants socket access.
 

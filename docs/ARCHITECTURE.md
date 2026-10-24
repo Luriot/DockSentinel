@@ -132,7 +132,7 @@ Containers are never removed automatically; they are marked absent and pruned by
 scheduler / manual action
         │  queueScan() (idle check, priority, trigger)
         ▼
-  coordinator.tick() ── claimNextScan()  (one scan per environment, global limit)
+  coordinator.tick() ── claimNextScan()  (global concurrency limit)
         ▼
   mkdtemp under DATA_DIR/tmp
         ▼
@@ -203,7 +203,9 @@ resolve findings or produce a clean result. Unparseable output, timeouts and non
 - Images must be used by at least one present container to be scheduled. Newly discovered, never-scanned
   images are queued automatically when `scanOnDiscovery` is enabled.
 - A scan is never queued if another scan for the same image is queued or running.
-- Concurrency is `min(UI setting, SCAN_CONCURRENCY env)`; only one scan per environment runs at a time.
+- Concurrency is `min(UI setting, hard ceiling)`; the ceiling defaults to the CPUs available to the
+  process (max 8) and can be overridden with `SCAN_CONCURRENCY`. Several scans may hit the same Docker
+  host in parallel (each exports its own archive under `DATA_DIR/tmp`, so size the disk for the peak).
 - Transient failures (Docker unreachable, export failure, timeout, scanner failure, DB unavailable) are
   retried with exponential backoff while the configured retry budget lasts. Final failure creates one
   alert per image/environment/day.

@@ -161,16 +161,16 @@ export function getScan(db: Db, id: number): ScanRecord | null {
   return row ? mapScan(row) : null;
 }
 
-/** Claims one ready queued scan, never starting two scans for the same environment at once. */
+/**
+ * Claims one ready queued scan. The coordinator's global concurrency limit is the only cap, so
+ * several scans may target the same Docker host at once (one per queued image, priority first).
+ */
 export function claimNextScan(db: Db): ScanRecord | null {
   const now = nowIso();
   return db.transaction(() => {
     const row = db.get<ScanRow>(
       `SELECT s.* FROM scans s
        WHERE s.status = 'queued' AND (s.run_after IS NULL OR s.run_after <= ?)
-         AND NOT EXISTS (
-           SELECT 1 FROM scans r WHERE r.status = 'running' AND r.environment_id IS s.environment_id
-         )
        ORDER BY s.priority DESC, s.queued_at ASC
        LIMIT 1`,
       [now],

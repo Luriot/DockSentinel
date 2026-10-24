@@ -135,7 +135,7 @@ together.
 | `SCAN_MAX_OUTPUT_BYTES` | `100663296` | Report cap |
 | `MAX_IMAGE_EXPORT_BYTES` | `8589934592` | Archive cap |
 | `IMAGE_EXPORT_TIMEOUT_MS` | `600000` | Export timeout |
-| `SCAN_CONCURRENCY` | `2` | Upper bound; UI setting can be lower |
+| `SCAN_CONCURRENCY` | available CPUs (max 8) | Optional hard ceiling; the UI setting can only lower it |
 | `KEV_URL` | CISA feed | Override for mirrors/proxies |
 | `PUID` / `PGID` | `10001` | Runtime UID/GID; entrypoint chowns `/data` |
 | `DOCKER_GID` | `999` | Compose convenience variable for `group_add` |

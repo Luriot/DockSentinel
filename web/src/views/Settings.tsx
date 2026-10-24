@@ -115,7 +115,7 @@ export function Settings() {
             <Field
               label="Concurrent scans"
               htmlFor="scanConcurrency"
-              hint={`Current runtime ceiling: ${system.data?.limits.scanConcurrency ?? form.scanConcurrency}. Scans also serialise per environment.`}
+              hint={`Current runtime ceiling: ${system.data?.limits.scanConcurrency ?? form.scanConcurrency}. Scans run in parallel, including several against the same host.`}
             >
               <input
                 id="scanConcurrency"
