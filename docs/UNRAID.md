@@ -61,22 +61,22 @@ reviewer may require a forum thread.
 
 ## Socket permissions on Unraid
 
-By default the template runs the application as `PUID=99` / `PGID=100` (Unraid's `nobody:users`). Whether
-that can read the Docker socket depends on the socket's group:
+The template runs the application as `PUID=99` / `PGID=100` (Unraid's `nobody:users`) and already adds
+Unraid's Docker socket group with `--group-add=281`. Whether that is enough depends on the socket's group:
 
 ```bash
 stat -c '%g' /var/run/docker.sock
 ```
 
-- If the group matches `PGID`, discovery works.
-- Otherwise add the socket group with an extra parameter in the template (or the container's
-  **Extra Parameters** field in the Unraid UI):
+- If the group is `281` (the usual Unraid value) or matches `PGID`, discovery works out of the box.
+- Otherwise edit the container's **Extra Parameters** and replace `281` with the group printed above:
 
 ```
 --group-add=<socket-gid>
 ```
 
-After changing the parameter, restart the container and run **Test connection** for the environment.
+An unknown GID is harmless (it grants nothing); it simply does not help. After changing the parameter,
+restart the container and run **Test connection** for the environment.
 
 Do not work around permission errors by making the socket world-writable. Running the container as root
 (`PUID=0`) would also grant access, but it widens the blast radius and is not recommended. A read-only

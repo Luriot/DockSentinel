@@ -11,12 +11,12 @@
   <Project>https://github.com/Luriot/DockSentinel</Project>
   <License>MIT</License>
   <ExtraSearchTerms>docker vulnerability trivy scanner security cve</ExtraSearchTerms>
-  <Overview>DockSentinel monitors Docker images for known vulnerabilities using Trivy, tracks findings over time and sends deduplicated ntfy alerts. It only reads Docker metadata and never starts, stops or removes containers. The image is published at ghcr.io/luriot/docksentinel. Docker socket access is privileged: prefer TLS remote endpoints when possible. If discovery fails with permission denied, add the socket group with ExtraParams --group-add=GID (check the socket GID on the host with: stat -c '%g' /var/run/docker.sock).</Overview>
+  <Overview>DockSentinel monitors Docker images for known vulnerabilities using Trivy, tracks findings over time and sends deduplicated ntfy alerts. It only reads Docker metadata and never starts, stops or removes containers. The image is published at ghcr.io/luriot/docksentinel. Docker socket access is privileged: prefer TLS remote endpoints when possible. The template already passes --group-add=281 (Unraid's Docker socket group); if your socket uses another GID, adjust Extra Parameters (check it on the host with: stat -c '%g' /var/run/docker.sock).</Overview>
   <Category>Security:Tools</Category>
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Luriot/DockSentinel/main/templates/docksentinel.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/Luriot/DockSentinel/main/unraid-icon.png</Icon>
-  <ExtraParams>--restart=unless-stopped --security-opt=no-new-privileges:true</ExtraParams>
+  <ExtraParams>--restart=unless-stopped --security-opt=no-new-privileges:true --group-add=281</ExtraParams>
   <PostArgs/>
   <CPUset/>
   <DonateText/>
