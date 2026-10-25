@@ -105,6 +105,16 @@ export function Images() {
     }
   }
 
+  async function setExcluded(imageId: string, scanExcluded: boolean): Promise<void> {
+    try {
+      await api.patch(`/images/${encodeURIComponent(imageId)}`, { scanExcluded });
+      toast(scanExcluded ? 'Image excluded from scans' : 'Image included in scans', 'success');
+      refresh();
+    } catch (excludeError) {
+      toast(excludeError instanceof Error ? excludeError.message : 'Unable to update the image', 'error');
+    }
+  }
+
   function isStale(image: ImageSummary): boolean {
     if (!image.lastSuccessAt) return true;
     const age = Date.now() - Date.parse(image.lastSuccessAt);
@@ -274,23 +284,47 @@ export function Images() {
                           ) : null}
                         </td>
                         <td onClick={(event) => event.stopPropagation()}>
-                          <div className="hstack" style={{ gap: 4 }}>
-                            <button
-                              type="button"
-                              className="btn xs ghost"
-                              onClick={() => void scan(image.imageId, 'quick')}
-                              title="Queue quick scan (OS packages)"
-                            >
-                              <IconPlay width={11} height={11} /> Quick
-                            </button>
-                            <button
-                              type="button"
-                              className="btn xs ghost"
-                              onClick={() => void scan(image.imageId, 'standard')}
-                              title="Queue standard scan (OS + language packages)"
-                            >
-                              Standard
-                            </button>
+                          <div className="hstack" style={{ gap: 4, flexWrap: 'wrap' }}>
+                            {image.scanExcluded ? (
+                              <>
+                                <span className="badge warn">Excluded</span>
+                                <button
+                                  type="button"
+                                  className="btn xs ghost"
+                                  onClick={() => void setExcluded(image.imageId, false)}
+                                  title="Include this image in scheduled scans again"
+                                >
+                                  Include
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn xs ghost"
+                                  onClick={() => void scan(image.imageId, 'quick')}
+                                  title="Queue quick scan (OS packages)"
+                                >
+                                  <IconPlay width={11} height={11} /> Quick
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn xs ghost"
+                                  onClick={() => void scan(image.imageId, 'standard')}
+                                  title="Queue standard scan (OS + language packages)"
+                                >
+                                  Standard
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn xs ghost"
+                                  onClick={() => void setExcluded(image.imageId, true)}
+                                  title="Stop scheduling scans for this image; existing findings stay visible"
+                                >
+                                  Exclude
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>

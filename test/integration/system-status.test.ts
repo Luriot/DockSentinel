@@ -22,7 +22,7 @@ test('system status exposes health, disk, backups and update-check actions', asy
       update: unknown;
     }>();
     assert.ok(body.version.length > 0);
-    assert.equal(body.schemaVersion, 4);
+    assert.equal(body.schemaVersion, 5);
     assert.ok(Array.isArray(body.environments));
     assert.ok(Array.isArray(body.backups.items));
     assert.equal(body.update, null);

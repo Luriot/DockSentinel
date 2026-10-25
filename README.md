@@ -36,6 +36,8 @@ Docker endpoints ──► discovery ──► image scan (Trivy) ──► norm
   (their findings are deleted and skipped by future scans).
 - One finding per package/version/CVE per image: the same Go module reported by several binaries is no
   longer counted multiple times.
+- Per-image **Exclude** toggle in Images: quarantined or unused images stop being scanned (existing
+  findings stay visible); **Include** resumes the schedule.
 - First-run wizard with one-click Docker detection, inline ntfy setup, a visible **Scan now** action and
   progress until the first scan finishes.
 - System status page with Docker connectivity, Trivy/database health, disk usage, backups/restore-on-restart

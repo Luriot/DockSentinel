@@ -52,6 +52,9 @@ initial implementation, so the image and live Docker integration were verified a
 - Scan results are deduplicated per image by `(CVE, package, installed version)`: Trivy reports the same Go
   module once per binary, which inflated counts by up to 9×. Highest severity wins; the chosen target is
   the lowest name for stability.
+- Images can be excluded from scanning (`images.scan_excluded`, toggle in the Images page or
+  `PATCH /api/images/:id`): the scheduler and manual queue skip them, while existing findings stay
+  visible. Include again to resume; nothing is deleted.
 - Retry with bounded exponential backoff for transient failures; the only scan cap is the global
   concurrency (several scans may run against one host at once); no overlapping scans for the same image.
   While a retry is queued the image keeps its last terminal scan status; only an exhausted retry budget

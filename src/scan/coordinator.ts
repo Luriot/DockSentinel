@@ -7,7 +7,7 @@ import { DockerClient, DockerError } from '../docker/client.ts';
 import { getEnvironment, toDockerConnection, type EnvironmentRecord } from '../repo/environments.ts';
 import { applyScanFindings, refreshImageFindingCounts, type ApplyScanOutcome } from '../repo/findings.ts';
 import { applyContentFindings } from '../repo/content.ts';
-import { describeImage, listScanEnvironments, updateImageAfterScan } from '../repo/images.ts';
+import { describeImage, isImageScanExcluded, listScanEnvironments, updateImageAfterScan } from '../repo/images.ts';
 import {
   claimNextScan,
   getScan,
@@ -136,6 +136,13 @@ export class ScanCoordinator {
   enqueueManual(imageId: string, profile: ScanProfile, kind: ScanKind = 'vulnerability'): QueueResult {
     const image = this.db.get<{ image_id: string }>('SELECT image_id FROM images WHERE image_id = ?', [imageId]);
     if (!image) return { queued: false, scanId: null, message: 'Image is not in the inventory' };
+    if (isImageScanExcluded(this.db, imageId)) {
+      return {
+        queued: false,
+        scanId: null,
+        message: 'Image is excluded from scanning; include it again before requesting a scan',
+      };
+    }
     const oversized = oversizedImageSize(this.db, imageId, this.config.maxImageExportBytes);
     if (oversized !== null) {
       return {
@@ -202,7 +209,8 @@ export class ScanCoordinator {
   }
 
   enqueueScheduled(imageId: string, profile: ScanProfile, trigger: ScanTrigger, priority = 0): number | null {
-    // Oversized images are never queued automatically: they would fail on every retry cycle.
+    // Excluded images and oversized ones are never queued automatically.
+    if (isImageScanExcluded(this.db, imageId)) return null;
     if (oversizedImageSize(this.db, imageId, this.config.maxImageExportBytes) !== null) return null;
     const environments = listScanEnvironments(this.db, imageId);
     if (environments.length === 0) return null;

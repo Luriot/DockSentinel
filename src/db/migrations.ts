@@ -293,6 +293,14 @@ export const MIGRATIONS: readonly Migration[] = [
       SET identity = json_array(kind, scope, rule_id, target, COALESCE(start_line, 0));
     `,
   },
+  {
+    version: 5,
+    name: 'per-image scan exclusion',
+    sql: `
+      ALTER TABLE images ADD COLUMN scan_excluded INTEGER NOT NULL DEFAULT 0
+        CHECK (scan_excluded IN (0, 1));
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

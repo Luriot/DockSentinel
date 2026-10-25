@@ -3,7 +3,7 @@ import type { AppContext } from '../context.ts';
 import { notFound } from '../errors.ts';
 import { parseBoolean, parseId, parsePagination } from '../http.ts';
 import { buildOverview } from '../../repo/overview.ts';
-import { listImages, getImage } from '../../repo/images.ts';
+import { listImages, getImage, setImageScanExcluded } from '../../repo/images.ts';
 import { listContainers, getContainer, listContainersForImage } from '../../repo/containers.ts';
 import { listFindings, listFindingEvents } from '../../repo/findings.ts';
 import { listScans } from '../../repo/scans.ts';
@@ -88,6 +88,26 @@ export function registerInventoryRoutes(app: FastifyInstance, ctx: AppContext): 
       events: listFindingEvents(ctx.db, imageId, 15),
     };
   });
+
+  app.patch(
+    '/images/:imageId',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['scanExcluded'],
+          properties: { scanExcluded: { type: 'boolean' } },
+        },
+      },
+    },
+    async (req) => {
+      const imageId = (req.params as { imageId: string }).imageId;
+      const body = req.body as { scanExcluded: boolean };
+      if (!setImageScanExcluded(ctx.db, imageId, body.scanExcluded)) notFound('Image not found');
+      return { image: getImage(ctx.db, imageId) };
+    },
+  );
 
   app.post(
     '/images/:imageId/scan',

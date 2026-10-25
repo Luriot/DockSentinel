@@ -184,6 +184,8 @@ export interface ImageSummary {
   runningContainerCount: number;
   environmentCount: number;
   references: ImageReference[];
+  /** Excluded images keep their findings but are never queued for new scans. */
+  scanExcluded: boolean;
 }
 
 export interface LocalDockerCandidate {

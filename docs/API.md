@@ -33,6 +33,7 @@ administrative endpoints. All JSON responses use camelCase. Errors have the shap
 | `GET` | `/api/environments/detect` | Probes local Docker Desktop/named-pipe/Unix socket candidates for the welcome screen |
 | `GET` | `/api/images` | Filters: `q`, `envId`, `minSeverity=critical\|high`, `neverScanned`, `stale`, `page`, `pageSize` |
 | `GET` | `/api/images/:imageId` | Image inventory, containers, findings, counts, scans, events |
+| `PATCH` | `/api/images/:imageId` | Body `{ "scanExcluded": true\|false }`; excludes the image from scheduled and manual scans (existing findings stay) |
 | `GET` | `/api/containers` | Filters: `q`, `envId`, `status=running\|stopped\|all`, `exposure`, `includeRemoved`, paging |
 | `GET` | `/api/containers/:environmentId/:id` | Container detail, image, findings, scans |
 | `GET` | `/api/findings` | Filters: `q`, `severity` (comma list), `envId`, `imageId`, `kev`, `fixable`, `running`, `state=open\|resolved\|all`, `includeSuppressed`, `includeKernel` (kernel/header packages hidden by default), paging |

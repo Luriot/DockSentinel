@@ -113,6 +113,7 @@ export class Scheduler {
     const images = this.db.all<{ image_id: string }>(
       `SELECT i.image_id FROM images i
        WHERE i.last_success_at IS NULL
+         AND i.scan_excluded = 0
          AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = i.image_id AND c.present = 1 AND c.environment_id = ?)
          AND NOT EXISTS (
            SELECT 1 FROM scans s
@@ -140,7 +141,8 @@ export class Scheduler {
             FROM image_locations l JOIN environments e ON e.id = l.environment_id
             WHERE l.image_id = i.image_id AND e.enabled = 1 AND e.scan_enabled = 1) AS standard_hours
        FROM images i
-       WHERE EXISTS (SELECT 1 FROM containers c WHERE c.image_id = i.image_id AND c.present = 1)
+       WHERE i.scan_excluded = 0
+         AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = i.image_id AND c.present = 1)
          AND EXISTS (
            SELECT 1 FROM image_locations l JOIN environments e ON e.id = l.environment_id
            WHERE l.image_id = i.image_id AND e.enabled = 1 AND e.scan_enabled = 1
@@ -182,7 +184,7 @@ export class Scheduler {
     const staleBefore = isoAfter(-settings.freshnessHours * 2 * 3_600_000);
     const rows = this.db.all<{ image_id: string; last_success_at: string }>(
       `SELECT i.image_id, i.last_success_at FROM images i
-       WHERE i.last_success_at IS NOT NULL AND i.last_success_at < ?
+       WHERE i.last_success_at IS NOT NULL AND i.last_success_at < ? AND i.scan_excluded = 0
          AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = i.image_id AND c.present = 1 AND c.state = 'running')
        ORDER BY i.last_success_at ASC LIMIT ?`,
       [staleBefore, MAX_STALE_ALERTS],

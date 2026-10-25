@@ -121,6 +121,16 @@ test('images are deduplicated and can queue a scan', async ({ page }) => {
   await page.screenshot({ path: join(SCREENS, '03-images.png'), fullPage: true });
 });
 
+test('an image can be excluded from scans and included again', async ({ page }) => {
+  await login(page);
+  await page.goto(`${server.url}/images`);
+  const firstRow = page.locator('table tbody tr').first();
+  await firstRow.getByRole('button', { name: 'Exclude' }).click();
+  await expect(firstRow.getByText('Excluded')).toBeVisible();
+  await page.locator('table tbody tr').first().getByRole('button', { name: 'Include' }).click();
+  await expect(page.locator('table tbody tr').first().getByText('Excluded')).toBeHidden();
+});
+
 test('environments show independent status and validate unsafe addresses', async ({ page }) => {
   await login(page);
   await page.goto(`${server.url}/environments`);

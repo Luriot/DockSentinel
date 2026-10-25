@@ -32,6 +32,8 @@ export interface ImageSummary {
   runningContainerCount: number;
   environmentCount: number;
   references: ImageReference[];
+  /** Excluded images are never queued for scans (existing findings stay visible). */
+  scanExcluded: boolean;
 }
 
 interface ImageRow {
@@ -55,6 +57,7 @@ interface ImageRow {
   container_count: number;
   running_count: number;
   env_count: number;
+  scan_excluded: number;
 }
 
 
@@ -195,7 +198,7 @@ export function listImages(db: Db, filters: ImageFilters): { items: ImageSummary
   const rows = db.all<ImageRow>(
     `SELECT i.image_id, i.repo_digests, i.size_bytes, i.os_family, i.os_version, i.created_ts, i.first_seen_at,
             i.last_scan_at, i.last_scan_status, i.last_success_at, i.last_success_scan_id,
-            i.critical_count, i.high_count, i.medium_count, i.low_count, i.unknown_count, i.fixable_count,
+            i.critical_count, i.high_count, i.medium_count, i.low_count, i.unknown_count, i.fixable_count, i.scan_excluded,
             (SELECT COUNT(*) FROM containers c WHERE c.image_id = i.image_id AND c.present = 1) AS container_count,
             (SELECT COUNT(*) FROM containers c WHERE c.image_id = i.image_id AND c.present = 1 AND c.state = 'running') AS running_count,
             (SELECT COUNT(DISTINCT environment_id) FROM image_locations l WHERE l.image_id = i.image_id) AS env_count
@@ -257,12 +260,31 @@ export function listImages(db: Db, filters: ImageFilters): { items: ImageSummary
     runningContainerCount: row.running_count,
     environmentCount: row.env_count,
     references: referencesByImage.get(row.image_id) ?? [],
+    scanExcluded: row.scan_excluded === 1,
   }));
   return { items, total };
 }
 
 export function getImage(db: Db, imageId: string): ImageSummary | null {
   return listImages(db, { imageId, page: 1, pageSize: 1 }).items[0] ?? null;
+}
+
+/** Excluded images keep their findings but are never queued for new scans. */
+export function setImageScanExcluded(db: Db, imageId: string, excluded: boolean): boolean {
+  return (
+    db.run('UPDATE images SET scan_excluded = ?, updated_at = ? WHERE image_id = ?', [
+      excluded ? 1 : 0,
+      nowIso(),
+      imageId,
+    ]).changes > 0
+  );
+}
+
+export function isImageScanExcluded(db: Db, imageId: string): boolean {
+  return (
+    db.get<{ scan_excluded: number }>('SELECT scan_excluded FROM images WHERE image_id = ?', [imageId])
+      ?.scan_excluded === 1
+  );
 }
 
 export function safeParseStringArray(raw: string | null | undefined): string[] {
