@@ -33,6 +33,7 @@ import { Settings } from '../views/Settings.tsx';
 interface RouteDefinition {
   title: string;
   subtitle: string;
+  code: string;
   component: ComponentType;
 }
 
@@ -40,51 +41,61 @@ const ROUTES: Record<string, RouteDefinition> = {
   '/': {
     title: 'Overview',
     subtitle: 'Urgent vulnerabilities across your Docker workloads',
+    code: '01',
     component: Overview,
-  },
-  '/environments': {
-    title: 'Docker hosts',
-    subtitle: 'The Docker engines DockSentinel watches',
-    component: Environments,
-  },
-  '/containers': {
-    title: 'Containers',
-    subtitle: 'Workloads, their images and exposure context',
-    component: Containers,
-  },
-  '/images': {
-    title: 'Images',
-    subtitle: 'Deduplicated image inventory and scan freshness',
-    component: Images,
   },
   '/vulnerabilities': {
     title: 'Vulnerabilities',
     subtitle: 'Findings with fixes, exploitation signals and affected workloads',
+    code: '02',
     component: Vulnerabilities,
   },
   '/content': {
     title: 'Configuration & secrets',
     subtitle: 'Opt-in image content and image config findings',
+    code: '03',
     component: Content,
+  },
+  '/environments': {
+    title: 'Docker hosts',
+    subtitle: 'The Docker engines DockSentinel watches',
+    code: '04',
+    component: Environments,
+  },
+  '/containers': {
+    title: 'Containers',
+    subtitle: 'Workloads, their images and exposure context',
+    code: '05',
+    component: Containers,
+  },
+  '/images': {
+    title: 'Images',
+    subtitle: 'Deduplicated image inventory and scan freshness',
+    code: '06',
+    component: Images,
   },
   '/scans': {
     title: 'Scans',
     subtitle: 'Running, scheduled, successful and failed scans',
+    code: '07',
     component: Scans,
   },
   '/notifications': {
     title: 'Alerts',
     subtitle: 'ntfy delivery, alert policy and history',
+    code: '08',
     component: Notifications,
   },
   '/status': {
     title: 'System status',
     subtitle: 'Health, storage, backups and updates',
+    code: '09',
     component: Status,
   },
   '/settings': {
     title: 'Settings',
     subtitle: 'Scanning, retention, intelligence and security',
+    code: '10',
     component: Settings,
   },
 };
@@ -153,6 +164,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
   const definition = ROUTES[route.path] ?? {
     title: 'Not found',
     subtitle: 'This page does not exist',
+    code: '--',
     component: NotFound,
   };
   const welcome = route.path === '/' && overview.data !== null && (overview.data.environments.length === 0);
@@ -202,6 +214,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const active = route.path === item.path;
+                  const code = ROUTES[item.path]?.code ?? '--';
                   const badge =
                     item.path === '/vulnerabilities' && critical + high > 0
                       ? formatCount(critical + high)
@@ -224,6 +237,9 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                       }}
                     >
                       <Icon width={15} height={15} />
+                      <span className="nav-index" aria-hidden="true">
+                        {code}
+                      </span>
                       <span>{item.label}</span>
                       {badge ? (
                         <span className="nav-count" title={badgeTitle} aria-label={badgeTitle}>
@@ -265,6 +281,9 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
         <div className="main">
           <header className="topbar">
             <div className="page-heading">
+              <span className="page-code" aria-hidden="true">
+                WATCH / {definition.code}
+              </span>
               <h1>{welcome ? 'Welcome' : definition.title}</h1>
               <p>{welcome ? 'A few steps to start watching your Docker images' : definition.subtitle}</p>
             </div>
