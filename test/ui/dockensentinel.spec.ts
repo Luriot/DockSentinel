@@ -83,6 +83,7 @@ test('severity and known-exploited filters narrow findings', async ({ page }) =>
   await login(page);
   await page.goto(`${server.url}/vulnerabilities`);
   await expect(page.getByRole('button', { name: 'Group by CVE' })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: join(SCREENS, '02b-vulnerabilities-grouped.png'), fullPage: true });
   await page.getByRole('button', { name: 'Group by CVE' }).click();
   await expect(page.locator('table tbody tr')).toHaveCount(6);
 
@@ -267,6 +268,39 @@ test('keyboard basics: skip link and current-page navigation are exposed', async
   await page.keyboard.press('Tab');
   await expect(page.locator('.skip-link')).toBeFocused();
   await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+});
+
+test('theme defaults to dark and can be changed in settings', async ({ page }) => {
+  await login(page);
+  await page.goto(`${server.url}/settings`);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: 'Light theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.goto(server.url);
+  await page.screenshot({ path: join(SCREENS, '10-overview-light.png'), fullPage: true });
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.goto(`${server.url}/settings`);
+  await page.getByRole('button', { name: 'Dark theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
+test('the sign-in screen renders in both color schemes', async ({ page }) => {
+  const freshDir = await createDataDir();
+  const freshServer = await startAppServer(freshDir);
+  try {
+    await page.goto(freshServer.url);
+    await expect(page.getByRole('heading', { name: 'Create your admin account' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.screenshot({ path: join(SCREENS, '11-signin-dark.png'), fullPage: true });
+    await page.addInitScript(() => localStorage.setItem('docksentinel.theme', 'light'));
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.screenshot({ path: join(SCREENS, '11-signin-light.png'), fullPage: true });
+  } finally {
+    await freshServer.stop();
+    await cleanupDataDir(freshDir);
+  }
 });
 
 test('first-run setup requires the setup token and creates the administrator', async ({ page }) => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type KevStatus, type PublicSettings, type ScannerInfo, type Severity } from '../api.ts';
 import { useApi } from '../hooks.ts';
+import { applyTheme, getInitialTheme, type Theme } from '../theme.ts';
 import {
   ErrorPanel,
   Field,
@@ -38,8 +39,13 @@ export function Settings() {
   const system = useApi<SystemResponse>('/system');
   const [form, setForm] = useState<PublicSettings | null>(null);
   const [ignoredText, setIgnoredText] = useState('');
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     if (data && !form) {
@@ -85,6 +91,40 @@ export function Settings() {
 
   return (
     <div className="vstack" style={{ gap: 16 }}>
+      <section className="card">
+        <div className="card-header">
+          <div className="vstack">
+            <h2 className="section-title">Appearance</h2>
+            <span className="section-subtitle">
+              Theme for this browser. Changes apply immediately and survive a reload.
+            </span>
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="hstack" role="group" aria-label="Theme">
+            <button
+              type="button"
+              className={`btn small ${theme === 'dark' ? 'primary' : 'ghost'}`}
+              aria-pressed={theme === 'dark'}
+              onClick={() => setTheme('dark')}
+            >
+              Dark theme
+            </button>
+            <button
+              type="button"
+              className={`btn small ${theme === 'light' ? 'primary' : 'ghost'}`}
+              aria-pressed={theme === 'light'}
+              onClick={() => setTheme('light')}
+            >
+              Light theme
+            </button>
+          </div>
+          <p className="tiny dim" style={{ marginTop: 10 }}>
+            Dark is the default. The choice is stored in this browser only, not on the server.
+          </p>
+        </div>
+      </section>
+
       <section className="card">
         <div className="card-header">
           <div className="vstack">

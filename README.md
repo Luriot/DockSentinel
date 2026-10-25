@@ -38,6 +38,8 @@ Docker endpoints ──► discovery ──► image scan (Trivy) ──► norm
   longer counted multiple times.
 - Per-image **Exclude** toggle in Images: quarantined or unused images stop being scanned (existing
   findings stay visible); **Include** resumes the schedule.
+- Dark "harbor" interface by default, with a light theme one click away in **Settings → Appearance**.
+  The choice is remembered per browser; fonts are self-hosted (no CDN or external calls).
 - First-run wizard with one-click Docker detection, inline ntfy setup, a visible **Scan now** action and
   progress until the first scan finishes.
 - System status page with Docker connectivity, Trivy/database health, disk usage, backups/restore-on-restart
@@ -229,3 +231,6 @@ Container permissions: `PUID`/`PGID` control the runtime user; `DOCKER_GID` gran
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The interface bundles the Fraunces and IBM Plex Sans typefaces under the SIL Open Font License 1.1;
+the license texts are served from `/licenses/` and kept in [web/public/licenses](web/public/licenses).
