@@ -1,4 +1,5 @@
 import type { Severity } from '../domain/severity.ts';
+import { severityRank } from '../domain/severity.ts';
 
 export interface NormalizedFinding {
   target: string;
@@ -41,6 +42,29 @@ export function findingIdentity(f: {
   installedVersion: string;
 }): string {
   return `${f.target}\u0000${f.vulnId}\u0000${f.pkgName}\u0000${f.installedVersion}`;
+}
+
+/**
+ * Trivy reports the same package/version/CVE once per target (Go binaries, several files). The finding
+ * is about the package, so only one row per image is kept: highest severity wins, then the lowest target
+ * name, which keeps the choice stable across rescans.
+ */
+export function dedupeFindings(findings: NormalizedFinding[]): NormalizedFinding[] {
+  const byPackage = new Map<string, NormalizedFinding>();
+  for (const finding of findings) {
+    const key = `${finding.vulnId}\u0000${finding.pkgName}\u0000${finding.installedVersion}`;
+    const existing = byPackage.get(key);
+    if (!existing) {
+      byPackage.set(key, finding);
+      continue;
+    }
+    const stronger =
+      severityRank(finding.severity) !== severityRank(existing.severity)
+        ? severityRank(finding.severity) > severityRank(existing.severity)
+        : finding.target.localeCompare(existing.target) < 0;
+    if (stronger) byPackage.set(key, finding);
+  }
+  return [...byPackage.values()];
 }
 
 export interface FindingChange {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseTrivyReport, InvalidReportError } from '../../src/scanner/normalize.ts';
-import { scannerTimeoutMs } from '../../src/scanner/trivy.ts';
+import { scannerTimeoutMs, shouldRetryWithCachedDatabase } from '../../src/scanner/trivy.ts';
 import { parseCvss, validateReference } from '../../src/scanner/validate.ts';
 
 function report(results: unknown, extra: Record<string, unknown> = {}): string {
@@ -177,4 +177,15 @@ test('the standard profile honours the configured scan ceiling', () => {
   assert.equal(scannerTimeoutMs('quick', 60_000), 60_000);
   assert.equal(scannerTimeoutMs('standard', 15 * 60_000), 15 * 60_000);
   assert.equal(scannerTimeoutMs('standard', 45 * 60_000), 45 * 60_000);
+});
+
+test('a busy scanner cache or a failed database update retries against the cached database', () => {
+  assert.equal(
+    shouldRetryWithCachedDatabase(
+      'FATAL Fatal error run error: unable to initialize cache: cache may be in use by another process: timeout',
+    ),
+    true,
+  );
+  assert.equal(shouldRetryWithCachedDatabase('failed to download vulnerability database'), true);
+  assert.equal(shouldRetryWithCachedDatabase('some unrelated trivy failure'), false);
 });

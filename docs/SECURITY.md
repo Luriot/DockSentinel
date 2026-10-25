@@ -180,6 +180,9 @@ consequences:
   cache (see [SCANNERS.md](SCANNERS.md)).
 - A compromised Docker daemon or a malicious image can influence scanner output and resource usage.
   Timeouts, quotas and strict parsing reduce but do not eliminate that risk.
+- Kernel/header package findings (`linux-libc-dev`, `linux-image-*`) are stored but excluded from counts and
+  alerts by default: the kernel belongs to the host, not the image. They remain visible through the
+  vulnerabilities page filter and are not presented as patched-image guidance.
 - No guarantee that every vulnerable dependency is detectable: scratch/distroless images, vendored code,
   statically linked libraries and packages without metadata may be missed. This is a scanner coverage
   limitation, not something DockSentinel asserts around.

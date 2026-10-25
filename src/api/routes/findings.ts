@@ -1,8 +1,8 @@
-﻿import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.ts';
 import { notFound } from '../errors.ts';
 import { parseBoolean, parseId, parsePagination } from '../http.ts';
-import { eventsForFinding, getFinding, listFindings, refreshImageFindingCounts, setFindingTriage } from '../../repo/findings.ts';
+import { eventsForFinding, getFinding, listFindings, listGroupedFindings, refreshImageFindingCounts, setFindingTriage } from '../../repo/findings.ts';
 import { getImage } from '../../repo/images.ts';
 import { listScans } from '../../repo/scans.ts';
 import type { Severity } from '../../domain/severity.ts';
@@ -37,6 +37,7 @@ export function registerFindingRoutes(app: FastifyInstance, ctx: AppContext): vo
             running: { type: 'boolean' },
             state: { type: 'string', enum: ['open', 'resolved', 'all'] },
             includeSuppressed: { type: 'boolean' },
+            includeKernel: { type: 'boolean' },
             page: { type: 'integer', minimum: 1 },
             pageSize: { type: 'integer', minimum: 1, maximum: 100 },
           },
@@ -54,6 +55,7 @@ export function registerFindingRoutes(app: FastifyInstance, ctx: AppContext): vo
         running?: boolean;
         state?: 'open' | 'resolved' | 'all';
         includeSuppressed?: boolean;
+        includeKernel?: boolean;
         page?: number;
         pageSize?: number;
       };
@@ -68,6 +70,65 @@ export function registerFindingRoutes(app: FastifyInstance, ctx: AppContext): vo
         runningOnly: parseBoolean(query.running),
         state: query.state ?? 'open',
         includeSuppressed: parseBoolean(query.includeSuppressed),
+        includeKernel: parseBoolean(query.includeKernel),
+        page,
+        pageSize,
+      });
+      return { ...result, page, pageSize };
+    },
+  );
+
+  app.get(
+    '/findings/grouped',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            q: { type: 'string', maxLength: 200 },
+            severity: { type: 'string', maxLength: 100 },
+            envId: { type: 'integer', minimum: 1 },
+            imageId: { type: 'string', maxLength: 100 },
+            kev: { type: 'boolean' },
+            fixable: { type: 'boolean' },
+            running: { type: 'boolean' },
+            state: { type: 'string', enum: ['open', 'resolved', 'all'] },
+            includeSuppressed: { type: 'boolean' },
+            includeKernel: { type: 'boolean' },
+            page: { type: 'integer', minimum: 1 },
+            pageSize: { type: 'integer', minimum: 1, maximum: 100 },
+          },
+        },
+      },
+    },
+    async (req) => {
+      const query = req.query as {
+        q?: string;
+        severity?: string;
+        envId?: number;
+        imageId?: string;
+        kev?: boolean;
+        fixable?: boolean;
+        running?: boolean;
+        state?: 'open' | 'resolved' | 'all';
+        includeSuppressed?: boolean;
+        includeKernel?: boolean;
+        page?: number;
+        pageSize?: number;
+      };
+      const { page, pageSize } = parsePagination(query.page, query.pageSize);
+      const result = listGroupedFindings(ctx.db, {
+        search: query.q?.trim() || undefined,
+        severities: parseSeverities(query.severity),
+        environmentId: query.envId,
+        imageId: query.imageId,
+        kevOnly: parseBoolean(query.kev),
+        fixableOnly: parseBoolean(query.fixable),
+        runningOnly: parseBoolean(query.running),
+        state: query.state ?? 'open',
+        includeSuppressed: parseBoolean(query.includeSuppressed),
+        includeKernel: parseBoolean(query.includeKernel),
         page,
         pageSize,
       });
@@ -92,6 +153,7 @@ export function registerFindingRoutes(app: FastifyInstance, ctx: AppContext): vo
             running: { type: 'boolean' },
             state: { type: 'string', enum: ['open', 'resolved', 'all'] },
             includeSuppressed: { type: 'boolean' },
+            includeKernel: { type: 'boolean' },
             format: { type: 'string', enum: ['csv', 'json'] },
           },
         },
@@ -108,6 +170,7 @@ export function registerFindingRoutes(app: FastifyInstance, ctx: AppContext): vo
         running?: boolean;
         state?: 'open' | 'resolved' | 'all';
         includeSuppressed?: boolean;
+        includeKernel?: boolean;
         format?: 'csv' | 'json';
       };
       const result = listFindings(ctx.db, {
@@ -120,6 +183,7 @@ export function registerFindingRoutes(app: FastifyInstance, ctx: AppContext): vo
         runningOnly: parseBoolean(query.running),
         state: query.state ?? 'open',
         includeSuppressed: parseBoolean(query.includeSuppressed),
+        includeKernel: parseBoolean(query.includeKernel),
         page: 1,
         pageSize: 10_000,
       });

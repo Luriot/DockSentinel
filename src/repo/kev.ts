@@ -1,6 +1,7 @@
 import type { Db } from '../db/index.ts';
 import { nowIso } from '../util/time.ts';
 import type { Logger } from '../logger.ts';
+import { nonKernelPackageSql } from '../domain/packages.ts';
 
 
 export interface KevLookup {
@@ -105,7 +106,8 @@ export async function syncKev(
       const knownIncoming = new Set(valid.map((entry) => entry.cveId));
       const newlyExploitedIds = db
         .all<{ id: number; image_id: string; episode: number; vuln_id: string }>(
-          `SELECT id, image_id, episode, vuln_id FROM findings WHERE resolved_at IS NULL AND kev != 1`,
+          `SELECT id, image_id, episode, vuln_id FROM findings
+           WHERE resolved_at IS NULL AND kev != 1 AND ${nonKernelPackageSql('pkg_name')}`,
         )
         .filter((finding) => knownIncoming.has(finding.vuln_id.toUpperCase()))
         .map((finding) => ({ findingId: finding.id, imageId: finding.image_id, episode: finding.episode }));

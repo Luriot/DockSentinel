@@ -13,6 +13,7 @@ import { kevIsAvailable } from '../repo/kev.ts';
 import type { ScanRecord } from '../repo/scans.ts';
 import { createAlert, markAlertFailed, markAlertSent } from '../repo/alerts.ts';
 import type { NormalizedFinding } from '../domain/findings.ts';
+import { isKernelPackage } from '../domain/packages.ts';
 import {
   fixesAvailableMessage,
   knownExploitedMessage,
@@ -74,6 +75,7 @@ export class AlertService {
 
     if (settings.alertOnNew && outcome.appeared.length > 0) {
       const alertable = outcome.appeared
+        .filter((entry) => !isKernelPackage(entry.finding.pkgName))
         .filter((entry) => !this.isSuppressed(entry.id))
         .map((entry) => entry.finding)
         .filter((finding) => this.isAlertable(context, finding));
@@ -91,6 +93,7 @@ export class AlertService {
 
     if (settings.alertOnResolved && outcome.resolved.length > 0) {
       const alertable = outcome.resolved
+        .filter((finding) => !isKernelPackage(finding.pkgName))
         .filter((finding) => !this.isSuppressed(finding.id))
         .filter((finding) => this.isAlertable(context, finding));
       if (alertable.length > 0) {
@@ -104,6 +107,7 @@ export class AlertService {
       .map((change) => change.finding.id);
     if (fixedIds.length > 0) {
       const fixed = findingsByIds(this.db, fixedIds)
+        .filter((finding) => !isKernelPackage(finding.pkgName))
         .filter((finding) => finding.triageStatus !== 'ignored' && finding.triageStatus !== 'false_positive')
         .map(toNormalized)
         .filter((finding) => finding.fixedVersion && this.isAlertable(context, finding));

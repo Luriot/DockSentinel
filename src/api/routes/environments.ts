@@ -13,6 +13,7 @@ import {
   updateEnvironment,
 } from '../../repo/environments.ts';
 import { SEVERITIES, type Severity } from '../../domain/severity.ts';
+import { nonKernelPackageSql } from '../../domain/packages.ts';
 
 const ENV_SELECT = `
   SELECT e.id, e.name, e.kind, e.status, e.status_message, e.enabled, e.scan_enabled, e.address,
@@ -24,9 +25,11 @@ const ENV_SELECT = `
          (SELECT COUNT(*) FROM image_locations l WHERE l.environment_id = e.id) AS images,
          (SELECT COUNT(DISTINCT f.id) FROM findings f
             WHERE f.resolved_at IS NULL AND f.triage_status NOT IN ('ignored','false_positive') AND f.severity = 'CRITICAL'
+              AND ${nonKernelPackageSql('f.pkg_name')}
               AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = f.image_id AND c.environment_id = e.id AND c.present = 1)) AS critical,
          (SELECT COUNT(DISTINCT f.id) FROM findings f
             WHERE f.resolved_at IS NULL AND f.triage_status NOT IN ('ignored','false_positive') AND f.severity = 'HIGH'
+              AND ${nonKernelPackageSql('f.pkg_name')}
               AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = f.image_id AND c.environment_id = e.id AND c.present = 1)) AS high
   FROM environments e`;
 

@@ -4,7 +4,7 @@ import type { Logger } from '../logger.ts';
 import { nowIso } from '../util/time.ts';
 import { pruneScans } from '../repo/scans.ts';
 import { pruneAlerts } from '../repo/alerts.ts';
-import { pruneResolvedFindings } from '../repo/findings.ts';
+import { pruneResolvedFindings, refreshAllImageFindingCounts } from '../repo/findings.ts';
 import { pruneContentFindings } from '../repo/content.ts';
 
 export interface MaintenanceResult {
@@ -48,6 +48,9 @@ export function runMaintenance(db: Db, settings: AppSettings, log: Logger): Main
   });
 
   try {
+    // Counters are materialized; recompute them so an upgrade that changes the package policy applies
+    // to images that are not rescanned immediately.
+    refreshAllImageFindingCounts(db);
     db.exec('PRAGMA optimize');
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   } catch {

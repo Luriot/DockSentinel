@@ -28,6 +28,14 @@ Docker endpoints ──► discovery ──► image scan (Trivy) ──► norm
   and never masquerade as clean results.
 - Basic triage: acknowledge, ignore or mark a finding as a false positive, with optional notes. Ignored
   findings leave default counts and alerts; CSV/JSON export is available.
+- Kernel and header package findings (`linux-libc-dev`, `linux-image-*`, …) are stored but excluded from
+  counts, dashboard totals and alerts by default, because the kernel belongs to the host. A **Kernel
+  packages** filter on the vulnerabilities page shows them on demand.
+- **Group by CVE** collapses the same vulnerability across images into one row (images, findings and
+  duplicate-target counts), and Settings → **Ignored packages** drops packages you never intend to patch
+  (their findings are deleted and skipped by future scans).
+- One finding per package/version/CVE per image: the same Go module reported by several binaries is no
+  longer counted multiple times.
 - First-run wizard with one-click Docker detection, inline ntfy setup, a visible **Scan now** action and
   progress until the first scan finishes.
 - System status page with Docker connectivity, Trivy/database health, disk usage, backups/restore-on-restart
@@ -199,7 +207,7 @@ the UI and stored in SQLite.
 | `TRIVY_BIN` / `TRIVY_CACHE_DIR` | `trivy` / `DATA_DIR/trivy-cache` | Scanner and cache |
 | `SCAN_TIMEOUT_MS` | `900000` | Hard scan ceiling; the standard profile uses it (quick stays at 5 minutes) |
 | `SCAN_MAX_OUTPUT_BYTES` | `96 MiB` | Maximum report size |
-| `MAX_IMAGE_EXPORT_BYTES` | `8 GiB` | Maximum image archive size |
+| `MAX_IMAGE_EXPORT_BYTES` | `8 GiB` | Maximum image archive size; larger images are not scanned |
 | `IMAGE_EXPORT_TIMEOUT_MS` | `600000` | Docker image export timeout |
 | `SCAN_CONCURRENCY` | available CPUs (max 8) | Optional hard ceiling for simultaneous scans |
 | `KEV_URL` | CISA feed | Override for a mirror or proxy |

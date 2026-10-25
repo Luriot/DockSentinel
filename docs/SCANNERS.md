@@ -50,6 +50,11 @@ change the result. One consequence: if two hosts use different image-store imple
 may appear under two IDs and be scanned twice rather than deduplicated. This is a deliberate trade-off;
 changing the identity to a parsed config digest would require reading/unpacking every image archive.
 
+Trivy reports the same package/version/CVE once per *target* (each Go binary, for example), so a scan is
+deduplicated per image by `(CVE, package, installed version)` before storage. The highest severity wins,
+then the lowest target name (stable across rescans). The grouped vulnerabilities view exposes how many
+targets reported a duplicate.
+
 ## Profiles
 
 | Profile | Trivy options | Coverage | Target timeout |
@@ -61,6 +66,10 @@ These are genuinely different scans, not cosmetic labels. Quick is suitable for 
 packages; standard is the default first scan and the weekly/deep scan. Neither profile filters out
 unfixed findings: `--ignore-unfixed` is deliberately not used, because fix availability is displayed and
 used for prioritisation.
+
+A quick scan only reports OS packages, so it **cannot resolve language/application findings** left by an
+older standard scan: those stay open until the next standard scan reports them again (or no longer does).
+Applying a quick report as if it covered everything would silently hide dependency findings for a week.
 
 A hard ceiling (`SCAN_TIMEOUT_MS`, default 15 minutes) applies to every profile. Quick keeps its
 5-minute target; the standard profile uses the ceiling, so raising `SCAN_TIMEOUT_MS` gives large
@@ -112,6 +121,9 @@ trivy image --input image.tar --format json --output report-content.json --quiet
   daemon, host, cluster or mounted volumes. Secret findings can be false positives.
 - **License compliance.** Trivy's license scanner is not enabled.
 - **Host kernel, host packages, Docker daemon configuration.** DockSentinel scans images, not hosts.
+  Kernel/header packages that Trivy reports inside an image (`linux-libc-dev`, `linux-image-*`) are
+  stored but excluded from counts, dashboard totals and alerts by default, since the running kernel is
+  the host's. The **Kernel packages** filter on the vulnerabilities page lists them on demand.
 - **Every dependency.** Statically linked code, vendored libraries without metadata, distroless/scratch
   images with no package metadata, proprietary binaries and build artifacts may be invisible to the
   scanner. No scanner can guarantee complete coverage.

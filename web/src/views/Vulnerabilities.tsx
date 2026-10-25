@@ -43,6 +43,28 @@ interface FindingsResponse {
   pageSize: number;
 }
 
+interface GroupedFinding {
+  vulnId: string;
+  pkgName: string;
+  severity: Severity;
+  title: string | null;
+  primaryUrl: string | null;
+  kev: number;
+  fixable: number;
+  images: number;
+  targets: number;
+  findings: number;
+  lastSeenAt: string;
+}
+
+interface GroupedResponse {
+  items: GroupedFinding[];
+  total: number;
+  counts: SeverityCounts;
+  page: number;
+  pageSize: number;
+}
+
 interface FindingDetail {
   finding: FindingView;
   image: ImageSummary | null;
@@ -82,12 +104,14 @@ export function Vulnerabilities() {
     (route.params.get('state') as 'open' | 'resolved' | 'all' | null) ?? 'open',
   );
   const [includeSuppressed, setIncludeSuppressed] = useState(route.params.get('suppressed') === 'true');
+  const [includeKernel, setIncludeKernel] = useState(route.params.get('includeKernel') === 'true');
+  const [grouped, setGrouped] = useState(route.params.get('grouped') !== 'false');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state, includeSuppressed]);
+  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state, includeSuppressed, includeKernel, grouped]);
 
   const query = new URLSearchParams();
   if (debouncedSearch) query.set('q', debouncedSearch);
@@ -99,6 +123,8 @@ export function Vulnerabilities() {
   if (environmentId) query.set('envId', environmentId);
   if (state !== 'open') query.set('state', state);
   if (includeSuppressed) query.set('includeSuppressed', 'true');
+  if (includeKernel) query.set('includeKernel', 'true');
+  query.set('grouped', grouped ? 'true' : 'false');
   query.set('page', String(page));
   query.set('pageSize', '25');
 
@@ -109,9 +135,12 @@ export function Vulnerabilities() {
     next.delete('pageSize');
     const text = next.toString();
     window.history.replaceState(null, '', `${window.location.pathname}${text ? `?${text}` : ''}`);
-  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state, includeSuppressed]);
+  }, [debouncedSearch, severities, imageId, kevOnly, fixableOnly, runningOnly, environmentId, state, includeSuppressed, includeKernel, grouped]);
 
   const { data, error, loading, refresh } = useApi<FindingsResponse>(`/findings?${query.toString()}`, {
+    intervalMs: 30_000,
+  });
+  const groupedResults = useApi<GroupedResponse>(grouped ? `/findings/grouped?${query.toString()}` : null, {
     intervalMs: 30_000,
   });
   const environments = useApi<{ items: EnvironmentSummary[] }>('/environments');
@@ -148,7 +177,10 @@ export function Vulnerabilities() {
     runningOnly ||
     Boolean(environmentId) ||
     includeSuppressed ||
+    includeKernel ||
     state !== 'open';
+
+  const isEmpty = grouped ? groupedResults.data?.items.length === 0 : data?.items.length === 0;
 
   return (
     <div className="vstack" style={{ gap: 14 }}>
@@ -179,6 +211,15 @@ export function Vulnerabilities() {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            className="chip-toggle"
+            aria-pressed={grouped}
+            onClick={() => setGrouped((value) => !value)}
+            title="One row per vulnerability and package across images"
+          >
+            Group by CVE
+          </button>
           <button type="button" className="chip-toggle" aria-pressed={kevOnly} onClick={() => setKevOnly((value) => !value)}>
             Known exploited
           </button>
@@ -196,6 +237,15 @@ export function Vulnerabilities() {
             title="Show findings marked ignored or false positive"
           >
             Show ignored
+          </button>
+          <button
+            type="button"
+            className="chip-toggle"
+            aria-pressed={includeKernel}
+            onClick={() => setIncludeKernel((value) => !value)}
+            title="Kernel and header packages describe the host kernel, not the image; hidden from counts and alerts by default"
+          >
+            Kernel packages
           </button>
           <select
             className="select"
@@ -270,8 +320,9 @@ export function Vulnerabilities() {
         {data ? (
           <div className="filters" style={{ borderBottom: '1px solid var(--border)', paddingTop: 8, paddingBottom: 8 }}>
             <span className="tiny dim">
-              {data.total} matching {state === 'resolved' ? 'resolved' : 'open'}{' '}
-              {data.total === 1 ? 'finding' : 'findings'}
+              {grouped && groupedResults.data
+                ? `${groupedResults.data.total} ${groupedResults.data.total === 1 ? 'vulnerability' : 'vulnerabilities'} · ${data.total} ${state === 'resolved' ? 'resolved' : 'open'} findings`
+                : `${data.total} matching ${state === 'resolved' ? 'resolved' : 'open'} ${data.total === 1 ? 'finding' : 'findings'}`}
             </span>
             <span className="hstack" style={{ marginLeft: 'auto', gap: 4 }}>
               <span className="badge sev-CRITICAL">C {data.counts.CRITICAL}</span>
@@ -283,10 +334,14 @@ export function Vulnerabilities() {
           </div>
         ) : null}
 
-        {error && !data ? <ErrorPanel error={error} onRetry={refresh} /> : null}
-        {loading && !data ? <TableSkeleton rows={8} columns={6} /> : null}
+        {!grouped && error && !data ? <ErrorPanel error={error} onRetry={refresh} /> : null}
+        {!grouped && loading && !data ? <TableSkeleton rows={8} columns={6} /> : null}
+        {grouped && groupedResults.error && !groupedResults.data ? (
+          <ErrorPanel error={groupedResults.error} onRetry={groupedResults.refresh} />
+        ) : null}
+        {grouped && groupedResults.loading && !groupedResults.data ? <TableSkeleton rows={8} columns={8} /> : null}
 
-        {data && data.items.length === 0 ? (
+        {isEmpty ? (
           <EmptyState
             icon={<IconBug width={26} height={26} />}
             title={state === 'resolved' ? 'No resolved findings match' : 'No findings match'}
@@ -322,7 +377,76 @@ export function Vulnerabilities() {
           </EmptyState>
         ) : null}
 
-        {data && data.items.length > 0 ? (
+        {grouped && data ? (
+          <p className="tiny dim" style={{ padding: '0 14px 8px' }}>
+            One row per CVE and package across all images. Click a vulnerability to see its individual findings.
+          </p>
+        ) : null}
+
+        {grouped && groupedResults.data && groupedResults.data.items.length > 0 ? (
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <caption className="sr-only">Vulnerabilities grouped by CVE and package</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Vulnerability</th>
+                    <th scope="col">Package</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Images</th>
+                    <th scope="col">Findings</th>
+                    <th scope="col">Signals</th>
+                    <th scope="col">Last seen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedResults.data.items.map((group) => (
+                    <tr
+                      key={`${group.vulnId}:${group.pkgName}`}
+                      className="clickable"
+                      onClick={() => {
+                        setGrouped(false);
+                        setSearch(group.vulnId);
+                      }}
+                    >
+                      <td>
+                        <div className="cell-main mono id">{group.vulnId}</div>
+                        <div className="cell-sub truncate" style={{ maxWidth: 320 }} title={group.title ?? undefined}>
+                          {group.title ?? 'No title reported'}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-main mono truncate" style={{ maxWidth: 200 }} title={group.pkgName}>
+                          {group.pkgName}
+                        </div>
+                      </td>
+                      <td>
+                        <SeverityBadge severity={group.severity} />
+                      </td>
+                      <td>{group.images}</td>
+                      <td>{group.findings}</td>
+                      <td>
+                        <div className="hstack" style={{ flexWrap: 'wrap', gap: 4 }}>
+                          {group.kev === 1 ? <KevBadge kev={1} /> : null}
+                          {group.fixable > 0 ? <span className="badge ok">{group.fixable} fixable</span> : null}
+                        </div>
+                      </td>
+                      <td className="small">{relativeTime(group.lastSeenAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={groupedResults.data.page}
+              pageSize={groupedResults.data.pageSize}
+              total={groupedResults.data.total}
+              onChange={setPage}
+            />
+          </>
+        ) : null}
+
+        {!grouped && data && data.items.length > 0 ? (
           <>
             <div className="table-wrap">
               <table className="table">

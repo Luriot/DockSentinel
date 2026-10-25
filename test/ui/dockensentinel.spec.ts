@@ -64,6 +64,10 @@ test('priority queue leads into the vulnerability workflow', async ({ page }) =>
   await expect(page).toHaveURL(/\/vulnerabilities\?q=CVE-2024-1111/);
   await expect(page.getByRole('heading', { name: 'Vulnerabilities', level: 1 })).toBeVisible();
 
+  // The grouped view is the default: open the CVE, then the individual finding.
+  await page.locator('table tbody tr').first().click();
+  await expect(page.getByRole('button', { name: 'Group by CVE' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByText(/\d+ matching open finding/)).toBeVisible();
   await page.locator('table tbody tr').first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -78,6 +82,8 @@ test('priority queue leads into the vulnerability workflow', async ({ page }) =>
 test('severity and known-exploited filters narrow findings', async ({ page }) => {
   await login(page);
   await page.goto(`${server.url}/vulnerabilities`);
+  await expect(page.getByRole('button', { name: 'Group by CVE' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Group by CVE' }).click();
   await expect(page.locator('table tbody tr')).toHaveCount(6);
 
   await page.getByRole('button', { name: 'Critical' }).click();
@@ -181,7 +187,7 @@ test('configuration and secret findings show metadata without secret values', as
 
 test('finding triage acknowledges and clears a finding, and exports CSV', async ({ page }) => {
   await login(page);
-  await page.goto(`${server.url}/vulnerabilities`);
+  await page.goto(`${server.url}/vulnerabilities?grouped=false`);
   await page.locator('table tbody tr').first().click();
   const drawer = page.getByRole('dialog');
   await expect(drawer.getByRole('heading', { name: 'Triage' })).toBeVisible();

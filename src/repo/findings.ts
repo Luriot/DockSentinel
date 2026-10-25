@@ -2,6 +2,7 @@ import type { Db } from '../db/index.ts';
 import type { NormalizedFinding, StoredFinding, TriageStatus } from '../domain/findings.ts';
 import { countSeverities, diffFindings, type FindingChange } from '../domain/findings.ts';
 import { normalizeSeverity, type Severity } from '../domain/severity.ts';
+import { isKernelPackage, nonKernelPackageSql } from '../domain/packages.ts';
 import { parseWorkloadLabels } from '../domain/policy.ts';
 import type { ExposureState } from '../domain/exposure.ts';
 import { prioritiseFinding, type PriorityResult } from '../domain/priority.ts';
@@ -162,10 +163,12 @@ export interface ApplyScanOutcome {
 /**
  * Applies a successful scan inside the caller's transaction. Findings are keyed by image ID and
  * identity; a finding missing from a successful report is resolved, never inferred from a failure.
+ * A quick profile only reports OS packages, so `osOnly` keeps its older language findings attached
+ * instead of resolving packages the scan never looked at.
  */
 export function applyScanFindings(
   db: Db,
-  input: { imageId: string; scanId: number; findings: NormalizedFinding[]; now: string },
+  input: { imageId: string; scanId: number; findings: NormalizedFinding[]; now: string; osOnly?: boolean },
 ): ApplyScanOutcome {
   const previous = db
     .all<{
@@ -181,7 +184,7 @@ export function applyScanFindings(
       episode: number;
     }>(
       `SELECT id, target, vuln_id, pkg_name, installed_version, fixed_version, severity, title, primary_url, episode
-       FROM findings WHERE image_id = ? AND resolved_at IS NULL`,
+       FROM findings WHERE image_id = ? AND resolved_at IS NULL${input.osOnly ? " AND class = 'os-pkgs'" : ''}`,
       [input.imageId],
     )
     .map((row) => ({
@@ -378,7 +381,12 @@ export function applyScanFindings(
     );
   }
 
-  return { appeared, resolved: diff.resolved, changed: diff.changed, counts: countSeverities(input.findings) };
+  return {
+    appeared,
+    resolved: diff.resolved,
+    changed: diff.changed,
+    counts: countSeverities(input.findings.filter((finding) => !isKernelPackage(finding.pkgName))),
+  };
 }
 
 export interface FindingFilters {
@@ -391,22 +399,29 @@ export interface FindingFilters {
   runningOnly?: boolean;
   state?: 'open' | 'resolved' | 'all';
   includeSuppressed?: boolean;
+  /** Kernel/header packages are hidden unless explicitly requested. */
+  includeKernel?: boolean;
   page: number;
   pageSize: number;
 }
 
 const SEVERITY_ORDER_SQL = `CASE f.severity WHEN 'CRITICAL' THEN 4 WHEN 'HIGH' THEN 3 WHEN 'MEDIUM' THEN 2 WHEN 'LOW' THEN 1 ELSE 0 END`;
 
-export function listFindings(
-  db: Db,
-  filters: FindingFilters,
-): { items: FindingView[]; total: number; counts: Record<Severity, number> } {
+function severityFromRank(rank: number): Severity {
+  return rank >= 4 ? 'CRITICAL' : rank === 3 ? 'HIGH' : rank === 2 ? 'MEDIUM' : rank === 1 ? 'LOW' : 'UNKNOWN';
+}
+
+function buildFindingConditions(filters: FindingFilters): {
+  conditions: string[];
+  params: (string | number)[];
+} {
   const conditions: string[] = [];
   const params: (string | number)[] = [];
   const state = filters.state ?? 'open';
   if (state === 'open') conditions.push('f.resolved_at IS NULL');
   if (state === 'resolved') conditions.push('f.resolved_at IS NOT NULL');
   if (!filters.includeSuppressed) conditions.push("f.triage_status NOT IN ('ignored','false_positive')");
+  if (!filters.includeKernel) conditions.push(nonKernelPackageSql('f.pkg_name'));
   if (filters.imageId) {
     conditions.push('f.image_id = ?');
     params.push(filters.imageId);
@@ -436,9 +451,14 @@ export function listFindings(
     const like = `%${filters.search}%`;
     params.push(like, like, like, like, like);
   }
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { conditions, params };
+}
 
-  const total = db.get<{ count: number }>(`SELECT COUNT(*) AS count FROM findings f ${where}`, params)?.count ?? 0;
+function countFindings(
+  db: Db,
+  where: string,
+  params: (string | number)[],
+): Record<Severity, number> {
   const counts = db.get<Record<Severity, number>>(
     `SELECT
        SUM(CASE WHEN severity = 'CRITICAL' THEN 1 ELSE 0 END) AS CRITICAL,
@@ -449,6 +469,24 @@ export function listFindings(
      FROM findings f ${where}`,
     params,
   ) ?? { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0 };
+  return {
+    CRITICAL: Number(counts.CRITICAL ?? 0),
+    HIGH: Number(counts.HIGH ?? 0),
+    MEDIUM: Number(counts.MEDIUM ?? 0),
+    LOW: Number(counts.LOW ?? 0),
+    UNKNOWN: Number(counts.UNKNOWN ?? 0),
+  };
+}
+
+export function listFindings(
+  db: Db,
+  filters: FindingFilters,
+): { items: FindingView[]; total: number; counts: Record<Severity, number> } {
+  const { conditions, params } = buildFindingConditions(filters);
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const total = db.get<{ count: number }>(`SELECT COUNT(*) AS count FROM findings f ${where}`, params)?.count ?? 0;
+  const counts = countFindings(db, where, params);
 
   const rows = db.all<FindingRow>(
     `SELECT f.* FROM findings f
@@ -472,31 +510,124 @@ export function listFindings(
     return enhanceFinding(finding, containers);
   });
 
+  return { items, total, counts };
+}
+
+export interface GroupedFinding {
+  vulnId: string;
+  pkgName: string;
+  severity: Severity;
+  title: string | null;
+  primaryUrl: string | null;
+  kev: number;
+  fixable: number;
+  images: number;
+  targets: number;
+  findings: number;
+  lastSeenAt: string;
+}
+
+/**
+ * One row per vulnerability + package across images, so a CVE touching 48 images is one line.
+ * `targets` exposes how many Trivy targets reported it (Go binaries often duplicate a package).
+ */
+export function listGroupedFindings(
+  db: Db,
+  filters: FindingFilters,
+): { items: GroupedFinding[]; total: number; counts: Record<Severity, number> } {
+  const { conditions, params } = buildFindingConditions(filters);
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const total =
+    db.get<{ count: number }>(
+      `SELECT COUNT(*) AS count FROM (
+         SELECT 1 FROM findings f ${where} GROUP BY f.vuln_id, f.pkg_name
+       )`,
+      params,
+    )?.count ?? 0;
+  const counts = countFindings(db, where, params);
+  const rows = db.all<{
+    vuln_id: string;
+    pkg_name: string;
+    rank: number;
+    title: string | null;
+    primary_url: string | null;
+    kev: number;
+    fixable: number;
+    images: number;
+    targets: number;
+    findings: number;
+    last_seen_at: string;
+  }>(
+    `SELECT f.vuln_id, f.pkg_name,
+       MAX(${SEVERITY_ORDER_SQL}) AS rank,
+       MAX(f.title) AS title,
+       MAX(f.primary_url) AS primary_url,
+       MAX(f.kev) AS kev,
+       SUM(CASE WHEN f.fixed_version IS NOT NULL AND f.fixed_version <> '' THEN 1 ELSE 0 END) AS fixable,
+       COUNT(DISTINCT f.image_id) AS images,
+       COUNT(DISTINCT f.target) AS targets,
+       COUNT(*) AS findings,
+       MAX(f.last_seen_at) AS last_seen_at
+     FROM findings f ${where}
+     GROUP BY f.vuln_id, f.pkg_name
+     ORDER BY rank DESC, kev DESC, images DESC, findings DESC
+     LIMIT ? OFFSET ?`,
+    [...params, filters.pageSize, (filters.page - 1) * filters.pageSize],
+  );
+
   return {
-    items,
     total,
-    counts: {
-      CRITICAL: Number(counts.CRITICAL ?? 0),
-      HIGH: Number(counts.HIGH ?? 0),
-      MEDIUM: Number(counts.MEDIUM ?? 0),
-      LOW: Number(counts.LOW ?? 0),
-      UNKNOWN: Number(counts.UNKNOWN ?? 0),
-    },
+    counts,
+    items: rows.map((row) => ({
+      vulnId: row.vuln_id,
+      pkgName: row.pkg_name,
+      severity: severityFromRank(row.rank),
+      title: row.title,
+      primaryUrl: row.primary_url,
+      kev: row.kev,
+      fixable: row.fixable,
+      images: row.images,
+      targets: row.targets,
+      findings: row.findings,
+      lastSeenAt: row.last_seen_at,
+    })),
   };
 }
 
 export function refreshImageFindingCounts(db: Db, imageId: string): void {
+  const kernel = nonKernelPackageSql('findings.pkg_name');
   db.run(
     `UPDATE images SET
-       critical_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'CRITICAL'),
-       high_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'HIGH'),
-       medium_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'MEDIUM'),
-       low_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'LOW'),
-       unknown_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'UNKNOWN'),
-       fixable_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND fixed_version IS NOT NULL AND fixed_version <> '')
+       critical_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'CRITICAL' AND ${kernel}),
+       high_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'HIGH' AND ${kernel}),
+       medium_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'MEDIUM' AND ${kernel}),
+       low_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'LOW' AND ${kernel}),
+       unknown_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND severity = 'UNKNOWN' AND ${kernel}),
+       fixable_count = (SELECT COUNT(*) FROM findings WHERE image_id = images.image_id AND resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive') AND fixed_version IS NOT NULL AND fixed_version <> '' AND ${kernel})
      WHERE image_id = ?`,
     [imageId],
   );
+}
+
+/** Recomputes materialized counters after the kernel-package policy arrives with an upgrade. */
+export function refreshAllImageFindingCounts(db: Db): number {
+  const images = db.all<{ image_id: string }>('SELECT image_id FROM images');
+  for (const image of images) refreshImageFindingCounts(db, image.image_id);
+  return images.length;
+}
+
+/** Deletes every finding of the given packages (ignored packages) and reports affected images. */
+export function purgeIgnoredFindings(db: Db, packageNames: readonly string[]): { removed: number; images: string[] } {
+  if (packageNames.length === 0) return { removed: 0, images: [] };
+  const placeholders = packageNames.map(() => '?').join(',');
+  const images = db
+    .all<{ image_id: string }>(
+      `SELECT DISTINCT image_id FROM findings WHERE pkg_name COLLATE NOCASE IN (${placeholders})`,
+      packageNames,
+    )
+    .map((row) => row.image_id);
+  const removed = db.run(`DELETE FROM findings WHERE pkg_name COLLATE NOCASE IN (${placeholders})`, packageNames).changes;
+  return { removed, images };
 }
 
 export function setFindingTriage(
@@ -578,9 +709,10 @@ export function listFindingEvents(db: Db, imageId: string, limit = 100): Finding
     pkg_name: string;
     severity: string;
   }>(
-    `SELECT e.id, e.kind, e.detail, e.created_at, e.scan_id, f.vuln_id, f.pkg_name, f.severity
-     FROM finding_events e JOIN findings f ON f.id = e.finding_id
-     WHERE e.image_id = ? ORDER BY e.created_at DESC LIMIT ?`,
+     `SELECT e.id, e.kind, e.detail, e.created_at, e.scan_id, f.vuln_id, f.pkg_name, f.severity
+      FROM finding_events e JOIN findings f ON f.id = e.finding_id
+      WHERE e.image_id = ? AND ${nonKernelPackageSql('f.pkg_name')}
+      ORDER BY e.created_at DESC LIMIT ?`,
     [imageId, limit],
   ).map((row) => ({
     id: row.id,
@@ -612,6 +744,7 @@ export function recentFindingEvents(db: Db, limit = 20): (FindingEventView & { i
               (SELECT l.reference FROM image_locations l WHERE l.image_id = e.image_id AND l.tag IS NOT NULL
                ORDER BY l.last_seen_at DESC LIMIT 1) AS image_ref
        FROM finding_events e JOIN findings f ON f.id = e.finding_id
+       WHERE ${nonKernelPackageSql('f.pkg_name')}
        ORDER BY e.created_at DESC LIMIT ?`,
       [limit],
     )

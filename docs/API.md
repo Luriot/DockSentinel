@@ -35,9 +35,10 @@ administrative endpoints. All JSON responses use camelCase. Errors have the shap
 | `GET` | `/api/images/:imageId` | Image inventory, containers, findings, counts, scans, events |
 | `GET` | `/api/containers` | Filters: `q`, `envId`, `status=running\|stopped\|all`, `exposure`, `includeRemoved`, paging |
 | `GET` | `/api/containers/:environmentId/:id` | Container detail, image, findings, scans |
-| `GET` | `/api/findings` | Filters: `q`, `severity` (comma list), `envId`, `imageId`, `kev`, `fixable`, `running`, `state=open\|resolved\|all`, `includeSuppressed`, paging |
+| `GET` | `/api/findings` | Filters: `q`, `severity` (comma list), `envId`, `imageId`, `kev`, `fixable`, `running`, `state=open\|resolved\|all`, `includeSuppressed`, `includeKernel` (kernel/header packages hidden by default), paging |
 | `GET` | `/api/findings/:id` | Finding detail, image, events, scans |
 | `GET` | `/api/findings/export` | CSV/JSON export with the same finding filters (`format=csv\|json`) |
+| `GET` | `/api/findings/grouped` | Same filters as `/api/findings`; one row per CVE + package with `images`, `findings`, `targets`, `fixable`, `kev` |
 | `GET` | `/api/content-findings` | Opt-in misconfiguration/secret metadata; filters `kind`, `severity`, `state`, `imageId`, `q`, paging. Never contains secret values |
 | `GET` | `/api/scans` | Filters: `status`, `kind=vulnerability\|content`, `imageId`, `envId`, paging |
 | `GET` | `/api/scans/:id` | Scan detail |

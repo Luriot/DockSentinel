@@ -37,11 +37,15 @@ export function Settings() {
   const { data, error, loading, refresh } = useApi<SettingsResponse>('/settings');
   const system = useApi<SystemResponse>('/system');
   const [form, setForm] = useState<PublicSettings | null>(null);
+  const [ignoredText, setIgnoredText] = useState('');
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    if (data && !form) setForm(data.settings);
+    if (data && !form) {
+      setForm(data.settings);
+      setIgnoredText(data.settings.ignoredPackages.join(', '));
+    }
   }, [data, form]);
 
   async function save(section: string, patch: Record<string, unknown>): Promise<void> {
@@ -103,6 +107,10 @@ export function Settings() {
                 scanFailureRetries: form.scanFailureRetries,
                 misconfigScanEnabled: form.misconfigScanEnabled,
                 secretScanEnabled: form.secretScanEnabled,
+                ignoredPackages: ignoredText
+                  .split(/[,\n]/)
+                  .map((name) => name.trim())
+                  .filter(Boolean),
               })
             }
           >
@@ -185,6 +193,19 @@ export function Settings() {
                 max={5}
                 value={form.scanFailureRetries}
                 onChange={(event) => setForm({ ...form, scanFailureRetries: Number(event.target.value) })}
+              />
+            </Field>
+            <Field
+              label="Ignored packages"
+              htmlFor="ignoredPackages"
+              hint="Exact package names, separated by commas. Their findings are deleted now and skipped by future scans (case-insensitive). Use for packages you do not intend to patch."
+            >
+              <input
+                id="ignoredPackages"
+                className="input"
+                value={ignoredText}
+                placeholder="chromium, chromium-common, chromium-driver"
+                onChange={(event) => setIgnoredText(event.target.value)}
               />
             </Field>
             <div className="vstack" style={{ gap: 10, justifyContent: 'end', paddingBottom: 4 }}>

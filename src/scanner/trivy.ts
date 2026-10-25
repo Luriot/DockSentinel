@@ -96,6 +96,12 @@ export function scannerTimeoutMs(profile: ScanProfile, maxTimeoutMs: number): nu
 
 const DB_ERROR_PATTERN =
   /(database error|db error|failed to download (the )?vulnerability db|failed to download vulnerability database|--skip-db-update cannot be specified|failed to update the vulnerability database)/i;
+const CACHE_LOCK_PATTERN = /cache may be in use by another process/i;
+
+/** Trivy exits non-zero on a busy shared cache; retrying against the cached DB avoids the lock. */
+export function shouldRetryWithCachedDatabase(stderr: string): boolean {
+  return DB_ERROR_PATTERN.test(stderr) || CACHE_LOCK_PATTERN.test(stderr);
+}
 
 export function scannerEnv(cacheDir: string): NodeJS.ProcessEnv {
   const allowed = [
@@ -152,12 +158,14 @@ export class TrivyAdapter implements ScannerAdapter {
     try {
       result = await this.invokeScanner(input, profile, timeoutMs, reportName, false);
     } catch (error) {
-      if (
-        error instanceof ProcessError &&
-        error.code === 'nonzero_exit' &&
-        DB_ERROR_PATTERN.test(error.stderr)
-      ) {
-        warnings.push('Vulnerability database update failed; retried with the cached database');
+      if (error instanceof ProcessError && error.code === 'nonzero_exit' && shouldRetryWithCachedDatabase(error.stderr)) {
+        if (CACHE_LOCK_PATTERN.test(error.stderr)) {
+          // Another scan is updating the shared cache; let it finish before reading the cached DB.
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+          warnings.push('Scanner cache was busy; retried with the cached database');
+        } else {
+          warnings.push('Vulnerability database update failed; retried with the cached database');
+        }
         try {
           result = await this.invokeScanner(input, profile, timeoutMs, reportName, true);
         } catch (retryError) {

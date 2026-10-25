@@ -352,13 +352,13 @@ implies control of the instance.
 | "Trivy unavailable" in Settings | Scanner binary missing from the image or `TRIVY_BIN` wrong. The production image bundles it; local dev needs `trivy` on `PATH`. |
 | Scan fails with `db_unavailable` | No vulnerability database in the cache and no outbound HTTPS. Pre-seed `TRIVY_CACHE_DIR` (see [SCANNERS.md](SCANNERS.md#air-gapped--offline-operation)) or allow egress. |
 | Scan fails with `image_export_failed` / HTTP 500 | Docker daemon could not export the image (storage pressure, image removed). Retry; check daemon logs. |
-| Scan fails with `image_too_large` / output limits | Raise `MAX_IMAGE_EXPORT_BYTES` / `SCAN_MAX_OUTPUT_BYTES` deliberately, or scan a smaller image variant. |
+| Scan refused as `image_too_large` | The image is above `MAX_IMAGE_EXPORT_BYTES`. It is not scheduled and will not retry in a loop; raise the cap deliberately (and `SCAN_TIMEOUT_MS`, free space under `/data/tmp`) or leave it unscanned. |
 | Environment offline, permission denied on socket | Add the socket GID (`DOCKER_GID` / `--group-add`) or use a socket proxy. |
 | TLS endpoint test fails | Certificate/key/CA mismatch, wrong SAN, or verification disabled incorrectly. Check the endpoint address (`host:2376`). |
 | Alerts pending with "notifications disabled" | Configure and enable ntfy in Notifications; pending alerts are retried once configured. |
 | Alerts failed with HTTP 401/403 | Wrong ntfy token/credentials or topic permissions. Use Test delivery. |
 | Login says "Too many attempts" | Per-IP limiter. Wait five minutes; restart clears the in-memory counter. |
-| Disk fills during scans | Lower `MAX_IMAGE_EXPORT_BYTES`, reduce concurrency, clean `/data/tmp`, ensure scans are not repeatedly retrying a huge image. Note the Trivy cache can reach ~1–2 GiB after standard scans. |
+| Disk fills during scans | Lower `MAX_IMAGE_EXPORT_BYTES`, reduce concurrency, clean `/data/tmp`. Note the Trivy cache can reach ~1–2 GiB after standard scans. |
 | Stale results everywhere | Endpoint unreachable or scans failing. Check Environments, Scan activity and scanner database status. |
 | UI shows old assets after upgrade | The SPA entry is served with `no-cache`; hard-refresh once if a proxy overrode cache headers. |
 

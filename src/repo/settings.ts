@@ -43,6 +43,8 @@ export interface AppSettings {
   /** Opt-in manual content scans; both default off. */
   misconfigScanEnabled: boolean;
   secretScanEnabled: boolean;
+  /** Package names dropped entirely from scan results, counts and alerts (exact, case-insensitive). */
+  ignoredPackages: string[];
   ntfy: NtfySettings;
 }
 
@@ -68,6 +70,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   kevEnabled: true,
   misconfigScanEnabled: false,
   secretScanEnabled: false,
+  ignoredPackages: [],
   ntfy: {
     enabled: false,
     baseUrl: 'https://ntfy.sh',
@@ -96,6 +99,26 @@ interface StoredNtfy {
 }
 
 type StoredSettings = Partial<Omit<AppSettings, 'ntfy'>> & { ntfy?: StoredNtfy };
+
+const PACKAGE_NAME = /^[A-Za-z0-9][A-Za-z0-9._+:@/-]*$/;
+
+/** Drops junk entries, duplicates and overly long names from the ignored-package list. */
+export function sanitizeIgnoredPackages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue;
+    const name = entry.trim();
+    if (!name || name.length > 200 || !PACKAGE_NAME.test(name)) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(name);
+    if (result.length >= 50) break;
+  }
+  return result;
+}
 
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
@@ -177,6 +200,7 @@ export function loadSettings(db: Db, key: Buffer): AppSettings {
     kevEnabled: bool(stored.kevEnabled, DEFAULT_SETTINGS.kevEnabled),
     misconfigScanEnabled: bool(stored.misconfigScanEnabled, DEFAULT_SETTINGS.misconfigScanEnabled),
     secretScanEnabled: bool(stored.secretScanEnabled, DEFAULT_SETTINGS.secretScanEnabled),
+    ignoredPackages: sanitizeIgnoredPackages(stored.ignoredPackages),
     ntfy: {
       enabled: bool(ntfyStored.enabled, DEFAULT_SETTINGS.ntfy.enabled),
       baseUrl: text(ntfyStored.baseUrl, DEFAULT_SETTINGS.ntfy.baseUrl, 500),

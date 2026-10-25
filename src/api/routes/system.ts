@@ -1,16 +1,18 @@
-﻿import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.ts';
 import { badRequest } from '../errors.ts';
 import { parsePagination } from '../http.ts';
 import {
   isValidTopic,
   loadSettings,
+  sanitizeIgnoredPackages,
   saveSettings,
   toPublicSettings,
   type AppSettings,
   type NtfyAuthType,
   type NtfyPriority,
 } from '../../repo/settings.ts';
+import { purgeIgnoredFindings, refreshImageFindingCounts } from '../../repo/findings.ts';
 import { validateNtfySettings } from '../../notify/ntfy.ts';
 import { alertStatusCounts, listAlerts, type AlertKind, type AlertStatus } from '../../repo/alerts.ts';
 import { getScannerInfo } from '../../scanner/info.ts';
@@ -56,6 +58,7 @@ interface SettingsPatch {
   kevEnabled?: boolean;
   misconfigScanEnabled?: boolean;
   secretScanEnabled?: boolean;
+  ignoredPackages?: string[];
   ntfy?: NtfyPatch;
 }
 
@@ -84,6 +87,11 @@ const settingsSchema = {
     kevEnabled: { type: 'boolean' },
     misconfigScanEnabled: { type: 'boolean' },
     secretScanEnabled: { type: 'boolean' },
+    ignoredPackages: {
+      type: 'array',
+      maxItems: 50,
+      items: { type: 'string', minLength: 1, maxLength: 200 },
+    },
     ntfy: {
       type: 'object',
       additionalProperties: false,
@@ -143,6 +151,10 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
       ntfy: { ...current.ntfy, ...stripUndefined((ntfyPatch ?? {}) as Record<string, unknown>) },
     };
 
+    if (patch.ignoredPackages !== undefined) {
+      next.ignoredPackages = sanitizeIgnoredPackages(patch.ignoredPackages);
+    }
+
     if (next.publicUrl) validatePublicUrl(next.publicUrl);
     if (next.ntfy.topic && !isValidTopic(next.ntfy.topic)) {
       badRequest('ntfy topic must be 1-64 characters: letters, numbers, dash or underscore');
@@ -151,8 +163,15 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
     if (next.ntfy.enabled && ntfyError) badRequest(ntfyError);
 
     saveSettings(ctx.db, ctx.config.secretKey, next);
+    let purged = 0;
+    if (patch.ignoredPackages !== undefined) {
+      const result = purgeIgnoredFindings(ctx.db, next.ignoredPackages);
+      purged = result.removed;
+      for (const imageId of result.images) refreshImageFindingCounts(ctx.db, imageId);
+      if (purged > 0) ctx.log.info({ purged }, 'findings of ignored packages removed');
+    }
     ctx.log.info({ keys: Object.keys(patch) }, 'settings updated');
-    return api();
+    return { ...(await api()), purgedFindings: purged };
   });
 
   app.get(

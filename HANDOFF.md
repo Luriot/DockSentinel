@@ -40,11 +40,25 @@ initial implementation, so the image and live Docker integration were verified a
 - Database-update failure retried once against the cached database with a warning; records DB age.
 - Strict parsing: malformed/truncated output, empty reports, timeouts, non-zero exits and oversized
   reports all fail. They never look clean. Previous findings are preserved on failure.
+- A quick profile only resolves OS-package findings; language findings from an older standard scan stay
+  open until the next standard scan, because quick never looked at them.
+- Kernel/header package findings (`linux-libc-dev`, `linux-image-*`, …) are stored but excluded from
+  counts, dashboard totals and alerts by default; the host kernel is not the image's. The
+  `includeKernel` API filter / **Kernel packages** UI toggle shows them, and maintenance recomputes the
+  materialized image counters so the policy applies to existing scans.
+- **Group by CVE** on the vulnerabilities page (and `GET /api/findings/grouped`) collapses one CVE across
+  images and exposes duplicate Trivy targets. Settings → **Ignored packages** deletes matching findings
+  immediately (events cascade) and skips them on future scans; it is the operator's explicit choice.
+- Scan results are deduplicated per image by `(CVE, package, installed version)`: Trivy reports the same Go
+  module once per binary, which inflated counts by up to 9×. Highest severity wins; the chosen target is
+  the lowest name for stability.
 - Retry with bounded exponential backoff for transient failures; the only scan cap is the global
   concurrency (several scans may run against one host at once); no overlapping scans for the same image.
   While a retry is queued the image keeps its last terminal scan status; only an exhausted retry budget
   marks it failed. A full disk (ENOSPC) is not retried, because every attempt would write another
   multi-gigabyte archive. Scan activity counters report cancelled scans separately from failed ones.
+  Images above `MAX_IMAGE_EXPORT_BYTES` are refused with a clear message and never queued
+  automatically, so they cannot fail on a loop; raising the cap re-enables them.
 - Recovery on restart: interrupted scans are requeued while budget remains, otherwise failed; scratch
   directories are cleaned.
 - Manual scans from images/containers, scheduled scans, first-scan-on-discovery, and per-environment

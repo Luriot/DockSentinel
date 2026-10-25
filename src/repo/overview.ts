@@ -5,6 +5,7 @@ import { recentFindingEvents } from './findings.ts';
 import { recentScans, scanStatusCounts } from './scans.ts';
 import { alertStatusCounts } from './alerts.ts';
 import { getKevStatus, type KevStatus } from './kev.ts';
+import { nonKernelPackageSql } from '../domain/packages.ts';
 
 export interface EnvironmentSummary {
   id: number;
@@ -82,7 +83,8 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
        COUNT(*) AS total,
        SUM(CASE WHEN kev = 1 THEN 1 ELSE 0 END) AS kev,
        SUM(CASE WHEN fixed_version IS NOT NULL AND fixed_version <> '' THEN 1 ELSE 0 END) AS fixable
-     FROM findings WHERE resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive')`,
+     FROM findings WHERE resolved_at IS NULL AND triage_status NOT IN ('ignored','false_positive')
+       AND ${nonKernelPackageSql('pkg_name')}`,
   );
 
   const affectedRunning = db.get<{ count: number }>(
@@ -90,7 +92,7 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
      WHERE c.present = 1 AND c.state = 'running'
        AND EXISTS (SELECT 1 FROM findings f WHERE f.image_id = c.image_id AND f.resolved_at IS NULL
                    AND f.triage_status NOT IN ('ignored','false_positive')
-                   AND f.severity IN ${AFFECTED_SEVERITIES})`,
+                   AND f.severity IN ${AFFECTED_SEVERITIES} AND ${nonKernelPackageSql('f.pkg_name')})`,
   )?.count ?? 0;
 
   const runningContainers = db.get<{ count: number }>(
@@ -101,7 +103,7 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
     `SELECT COUNT(*) AS count FROM images i
      WHERE EXISTS (SELECT 1 FROM findings f WHERE f.image_id = i.image_id AND f.resolved_at IS NULL
                    AND f.triage_status NOT IN ('ignored','false_positive')
-                   AND f.severity IN ${AFFECTED_SEVERITIES})
+                   AND f.severity IN ${AFFECTED_SEVERITIES} AND ${nonKernelPackageSql('f.pkg_name')})
        AND EXISTS (SELECT 1 FROM containers c WHERE c.image_id = i.image_id AND c.present = 1)`,
   )?.count ?? 0;
 
@@ -118,11 +120,15 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
   )?.count ?? 0;
 
   const newFindings24h = db.get<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM finding_events WHERE kind = 'appeared' AND created_at >= ?`,
+    `SELECT COUNT(*) AS count FROM finding_events e
+     WHERE e.kind = 'appeared' AND e.created_at >= ?
+       AND EXISTS (SELECT 1 FROM findings f WHERE f.id = e.finding_id AND ${nonKernelPackageSql('f.pkg_name')})`,
     [since24h],
   )?.count ?? 0;
   const resolvedFindings24h = db.get<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM finding_events WHERE kind = 'resolved' AND created_at >= ?`,
+    `SELECT COUNT(*) AS count FROM finding_events e
+     WHERE e.kind = 'resolved' AND e.created_at >= ?
+       AND EXISTS (SELECT 1 FROM findings f WHERE f.id = e.finding_id AND ${nonKernelPackageSql('f.pkg_name')})`,
     [since24h],
   )?.count ?? 0;
 

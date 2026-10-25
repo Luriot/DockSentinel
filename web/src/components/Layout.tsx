@@ -162,6 +162,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
   const runningScans = overview.data?.scans.running ?? 0;
   const queuedScans = overview.data?.scans.queued ?? 0;
   const environments = overview.data?.environments ?? [];
+  const formatCount = (value: number): string => (value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(value));
 
   async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
     await api.post('/auth/password', { currentPassword, newPassword });
@@ -203,10 +204,14 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                   const active = route.path === item.path;
                   const badge =
                     item.path === '/vulnerabilities' && critical + high > 0
-                      ? critical + high
+                      ? formatCount(critical + high)
                       : item.path === '/images' && (overview.data?.workloads.staleImages ?? 0) > 0
-                        ? overview.data?.workloads.staleImages
+                        ? formatCount(overview.data?.workloads.staleImages ?? 0)
                         : null;
+                  const badgeTitle =
+                    item.path === '/vulnerabilities'
+                      ? `${critical} critical and ${high} high findings`
+                      : `${overview.data?.workloads.staleImages ?? 0} images with stale results`;
                   return (
                     <a
                       key={item.path}
@@ -220,7 +225,11 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                     >
                       <Icon width={15} height={15} />
                       <span>{item.label}</span>
-                      {badge ? <span className="nav-count">{badge}</span> : null}
+                      {badge ? (
+                        <span className="nav-count" title={badgeTitle} aria-label={badgeTitle}>
+                          {badge}
+                        </span>
+                      ) : null}
                     </a>
                   );
                 })}

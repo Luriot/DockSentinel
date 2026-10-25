@@ -356,6 +356,7 @@ export interface PublicSettings {
   kevEnabled: boolean;
   misconfigScanEnabled: boolean;
   secretScanEnabled: boolean;
+  ignoredPackages: string[];
   ntfy: {
     enabled: boolean;
     baseUrl: string;

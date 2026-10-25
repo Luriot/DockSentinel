@@ -27,6 +27,8 @@ import {
   type ScannerRunResult,
 } from '../scanner/trivy.ts';
 import { invalidateScannerInfo } from '../scanner/info.ts';
+import { filterIgnoredPackages } from '../domain/packages.ts';
+import { dedupeFindings } from '../domain/findings.ts';
 import { recoverInterruptedScans } from './recovery.ts';
 import type { AlertService } from '../notify/service.ts';
 import type { AppSettings } from '../repo/settings.ts';
@@ -56,6 +58,21 @@ const FALLBACK_ENVIRONMENTS = 3;
 function retryDelayMs(attempt: number): number {
   const seconds = Math.min(15 * 60, 30 * 2 ** Math.max(0, attempt - 1));
   return seconds * 1000;
+}
+
+function formatGiB(bytes: number): string {
+  return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
+}
+
+function tooLargeMessage(size: number, maxBytes: number): string {
+  return `Image is ${formatGiB(size)}, above MAX_IMAGE_EXPORT_BYTES (${formatGiB(maxBytes)}); raise the limit to scan it`;
+}
+
+/** Size above the configured export cap, or null when the image can be scanned. */
+function oversizedImageSize(db: Db, imageId: string, maxBytes: number): number | null {
+  const size = db.get<{ size_bytes: number | null }>('SELECT size_bytes FROM images WHERE image_id = ?', [imageId])
+    ?.size_bytes;
+  return size && size > maxBytes ? size : null;
 }
 
 export interface QueueResult {
@@ -119,6 +136,14 @@ export class ScanCoordinator {
   enqueueManual(imageId: string, profile: ScanProfile, kind: ScanKind = 'vulnerability'): QueueResult {
     const image = this.db.get<{ image_id: string }>('SELECT image_id FROM images WHERE image_id = ?', [imageId]);
     if (!image) return { queued: false, scanId: null, message: 'Image is not in the inventory' };
+    const oversized = oversizedImageSize(this.db, imageId, this.config.maxImageExportBytes);
+    if (oversized !== null) {
+      return {
+        queued: false,
+        scanId: null,
+        message: tooLargeMessage(oversized, this.config.maxImageExportBytes),
+      };
+    }
     const environments = listScanEnvironments(this.db, imageId);
     if (environments.length === 0) {
       return { queued: false, scanId: null, message: 'No enabled Docker environment currently holds this image' };
@@ -177,6 +202,8 @@ export class ScanCoordinator {
   }
 
   enqueueScheduled(imageId: string, profile: ScanProfile, trigger: ScanTrigger, priority = 0): number | null {
+    // Oversized images are never queued automatically: they would fail on every retry cycle.
+    if (oversizedImageSize(this.db, imageId, this.config.maxImageExportBytes) !== null) return null;
     const environments = listScanEnvironments(this.db, imageId);
     if (environments.length === 0) return null;
     const display = describeImage(this.db, imageId);
@@ -294,10 +321,7 @@ export class ScanCoordinator {
       [scan.imageId],
     )?.size_bytes;
     if (advertisedSize && advertisedSize > this.config.maxImageExportBytes) {
-      throw new ScanExecutionError(
-        'image_too_large',
-        `Image size ${Math.round(advertisedSize / (1024 * 1024))} MiB exceeds MAX_IMAGE_EXPORT_BYTES`,
-      );
+      throw new ScanExecutionError('image_too_large', tooLargeMessage(advertisedSize, this.config.maxImageExportBytes));
     }
 
     let client: DockerClient;
@@ -341,13 +365,16 @@ export class ScanCoordinator {
       this.completeContent(scan, environment, result);
       return;
     }
+    const ignored = this.getSettings().ignoredPackages;
+    const findings = dedupeFindings(filterIgnoredPackages(result.findings, ignored));
     const now = nowIso();
     const outcome: ApplyScanOutcome = this.db.transaction(() => {
       const applied = applyScanFindings(this.db, {
         imageId: scan.imageId,
         scanId: scan.id,
-        findings: result.findings,
+        findings,
         now,
+        osOnly: scan.profile === 'quick',
       });
       markScanSuccess(this.db, scan.id, {
         environmentId: environment.id,
