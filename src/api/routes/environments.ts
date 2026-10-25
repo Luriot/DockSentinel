@@ -1,9 +1,9 @@
-﻿import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.ts';
 import { ApiError, badRequest, conflict, notFound } from '../errors.ts';
 import { parseId } from '../http.ts';
 import { parseAddress } from '../../docker/client.ts';
-import { detectLocalDocker } from '../../docker/detect.ts';
+import { detectLocalDocker, localDockerFailure } from '../../docker/detect.ts';
 import {
   createEnvironment,
   deleteEnvironment,
@@ -165,7 +165,7 @@ export function registerEnvironmentRoutes(app: FastifyInstance, ctx: AppContext)
         address: candidate.address,
         available: candidate.available,
         version: candidate.version,
-        error: candidate.available ? null : 'Not reachable',
+        error: candidate.available ? null : (candidate.error?.slice(0, 200) ?? 'Not reachable'),
       })),
     };
   });
@@ -174,14 +174,9 @@ export function registerEnvironmentRoutes(app: FastifyInstance, ctx: AppContext)
     const candidates = await detectLocalDocker();
     const detected = candidates.find((candidate) => candidate.available);
     if (!detected) {
+      const failure = localDockerFailure(candidates);
       reply.code(409);
-      return {
-        error: {
-          code: 'docker_not_found',
-          message:
-            'Docker was not found on this computer. Start Docker Desktop (or the Docker service), then try again. You can also connect a remote Docker host.',
-        },
-      };
+      return { error: failure };
     }
 
     const existing = listEnvironments(ctx.db).find(

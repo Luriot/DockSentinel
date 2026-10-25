@@ -59,6 +59,29 @@ export async function probeDockerCandidate(candidate: LocalDockerCandidate): Pro
   }
 }
 
+/**
+ * Explains why local detection found nothing. A container that can reach the socket but cannot read
+ * it is a permission problem, not a missing Docker engine.
+ */
+export function localDockerFailure(candidates: ProbedDockerCandidate[]): { code: string; message: string } {
+  const denied = candidates.some((candidate) => /EACCES|EPERM|permission denied/i.test(candidate.error ?? ''));
+  if (denied) {
+    return {
+      code: 'docker_socket_permission',
+      message:
+        'Docker is running, but DockSentinel cannot access its socket (permission denied). Add the socket ' +
+        'group to the container, for example Extra Parameters "--group-add=<socket GID>" (find it with: ' +
+        "stat -c '%g' /var/run/docker.sock), then restart the container.",
+    };
+  }
+  return {
+    code: 'docker_not_found',
+    message:
+      'Docker was not reachable on this computer. Start Docker, or mount /var/run/docker.sock into the ' +
+      'container when DockSentinel runs in Docker. You can also connect a remote Docker host.',
+  };
+}
+
 /** Probes candidates in order. The API never creates an environment from an unresponsive endpoint. */
 export async function detectLocalDocker(
   candidates: LocalDockerCandidate[] = localDockerCandidates(),
