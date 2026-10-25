@@ -78,6 +78,13 @@ stat -c '%g' /var/run/docker.sock
 An unknown GID is harmless (it grants nothing); it simply does not help. After changing the parameter,
 restart the container and run **Test connection** for the environment.
 
+The entrypoint keeps `--group-add` groups when it switches to `PUID`/`PGID`. If you run an older published
+image whose entrypoint drops them, set `PGID` to the socket group (here, `281`) instead until you update:
+
+```bash
+docker exec DockSentinel id   # groups= should list the socket group
+```
+
 Do not work around permission errors by making the socket world-writable. Running the container as root
 (`PUID=0`) would also grant access, but it widens the blast radius and is not recommended. A read-only
 socket proxy is a better alternative; see the deployment guide.

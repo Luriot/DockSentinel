@@ -316,7 +316,9 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 ## Deployment, upgrades, backup and restore
 
 - Production image: multi-stage `Dockerfile` (Node 24 slim runtime + pinned Trivy 0.75.0, CA certs, `tini`,
-  `gosu`; app process drops to `PUID`/`PGID`). Compose example and Unraid template included.
+  `gosu`; app process drops to `PUID`/`PGID` and keeps the supplementary groups added with
+  `--group-add`, so the Docker socket group works without running as root). Compose example and Unraid
+  template included.
 - Native: `npm ci && npm run native:setup && npm run native`; data in the per-user application folder,
   managed Trivy installed and checksum-verified by `native:setup`. Node 24.12+ is required.
 - Windows Docker Desktop named pipe is entered as kind `unix`, address `//./pipe/docker_engine`.

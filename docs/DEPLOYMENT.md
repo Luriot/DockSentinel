@@ -93,8 +93,8 @@ The Compose file mounts the socket read-only, but Docker access is effectively p
 
 ### Socket permissions
 
-The app process runs as `PUID:PGID` (default `10001:10001`). Access to the socket requires membership of
-the socket's group:
+The app process runs as `PUID:PGID` (default `10001:10001`) and the entrypoint preserves the
+supplementary groups Docker adds with `--group-add`, so membership of the socket's group is enough:
 
 ```bash
 stat -c '%g' /var/run/docker.sock
@@ -104,6 +104,9 @@ Set `DOCKER_GID` in `.env` to that value, then recreate the container. Docker De
 presents the socket as `root:root` mode `0660`; for local testing use `PUID=10001 PGID=0` (or
 `--group-add 0`). On Linux hosts, if the socket is owned by `root:root` with mode `0660` and you do not
 want to run with GID 0, use a socket proxy instead. Do not "fix" it by making the socket world-writable.
+
+> Images published before this change dropped `--group-add` while switching to `PUID`; with such an
+> image, set `PGID` to the socket group instead, or update to a newer image.
 
 ### Volumes
 
