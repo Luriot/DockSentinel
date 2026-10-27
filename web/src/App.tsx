@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, setCsrfToken, setUnauthorizedHandler, type SessionInfo } from './api.ts';
-import { ToastProvider } from './components/ui.tsx';
+import { IconShield, ToastProvider } from './components/ui.tsx';
 import { AuthScreen } from './components/AuthScreen.tsx';
 import { AppShell } from './components/Layout.tsx';
 
@@ -59,9 +59,17 @@ export default function App() {
 
   if (boot.status === 'loading') {
     return (
-      <div className="auth">
-        <div className="auth-brand" aria-hidden="true" />
-        <div className="auth-form-side">
+      <div className="auth-solo">
+        <div className="auth-solo-inner">
+          <div className="auth-solo-brand">
+            <span className="brand-mark">
+              <IconShield width={18} height={18} />
+            </span>
+            <span className="brand-text">
+              <span className="brand-name">DockSentinel</span>
+              <span className="brand-tag">Docker vulnerability watch</span>
+            </span>
+          </div>
           <div className="auth-card">
             <div className="inline-loading">
               <span className="spinner" aria-hidden="true" /> Loading DockSentinel…
@@ -74,11 +82,19 @@ export default function App() {
 
   if (boot.status === 'error') {
     return (
-      <div className="auth">
-        <div className="auth-brand" aria-hidden="true" />
-        <div className="auth-form-side">
+      <div className="auth-solo">
+        <div className="auth-solo-inner">
+          <div className="auth-solo-brand">
+            <span className="brand-mark">
+              <IconShield width={18} height={18} />
+            </span>
+            <span className="brand-text">
+              <span className="brand-name">DockSentinel</span>
+              <span className="brand-tag">Docker vulnerability watch</span>
+            </span>
+          </div>
           <div className="auth-card" role="alert">
-            <h2>DockSentinel is unreachable</h2>
+            <h1>DockSentinel is unreachable</h1>
             <p className="sub">{boot.message}</p>
             <button type="button" className="btn primary" onClick={() => void loadSession()}>
               Try again

@@ -131,7 +131,7 @@ export function Environments() {
   }
 
   return (
-    <div className="vstack" style={{ gap: 16 }}>
+    <div className="page-stack">
       <div className="note info">
         <strong>Docker access is privileged.</strong> DockSentinel only reads container and image metadata and never
         starts, stops or modifies containers. Prefer a local socket or a TLS-protected remote host.
@@ -139,7 +139,7 @@ export function Environments() {
 
       <div className="spread">
         <div>
-          <h2 className="section-title">Docker hosts</h2>
+          <h2 className="section-title">Watched hosts</h2>
           <p className="section-subtitle">
             DockSentinel can watch several Docker hosts. One unavailable host never blocks the others.
           </p>

@@ -127,7 +127,7 @@ const NAV_GROUPS = [
   {
     label: 'System',
     items: [
-      { path: '/status', label: 'System status', icon: IconActivity },
+      { path: '/status', label: 'System status', icon: IconShield },
       { path: '/settings', label: 'Settings', icon: IconSettings },
     ],
   },

@@ -213,14 +213,17 @@ export function KevBadge({ kev }: { kev: number }) {
 export function FixBadge({ fixedVersion }: { fixedVersion: string | null }) {
   if (!fixedVersion) return <span className="badge neutral">No fix listed</span>;
   return (
-    <span className="badge ok" title={`Fixed version: ${fixedVersion}`}>
-      Fix · {fixedVersion.length > 18 ? `${fixedVersion.slice(0, 16)}…` : fixedVersion}
+    <span
+      className="badge neutral"
+      title={`Fixed version: ${fixedVersion}. Not applied until the image is rebuilt and rescanned.`}
+    >
+      Fix in {fixedVersion.length > 18 ? `${fixedVersion.slice(0, 16)}…` : fixedVersion}
     </span>
   );
 }
 
 export function ExposureBadge({ state, reason }: { state: ExposureState | null | undefined; reason?: string | null }) {
-  const tone = state === 'confirmed' ? 'warn' : state === 'potential' ? 'warn' : state === 'internal' ? 'neutral' : 'neutral';
+  const tone = state === 'confirmed' || state === 'potential' ? 'accent' : 'neutral';
   return (
     <span className={`badge ${tone}`} title={reason ?? undefined}>
       {exposureShortLabel(state)}

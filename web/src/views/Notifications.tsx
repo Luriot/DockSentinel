@@ -87,7 +87,7 @@ export function Notifications() {
 
   if (loading && !data) {
     return (
-      <div className="vstack" style={{ gap: 14 }}>
+      <div className="page-stack">
         <div className="card">
           <TableSkeleton rows={5} columns={4} />
         </div>
@@ -165,7 +165,7 @@ export function Notifications() {
     );
 
   return (
-    <div className="vstack" style={{ gap: 16 }}>
+    <div className="page-stack">
       <div className="grid-2">
         <section className="card" aria-labelledby="ntfy-config-title">
           <div className="card-header">

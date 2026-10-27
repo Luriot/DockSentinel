@@ -1,4 +1,5 @@
-import { type OverviewData } from '../api.ts';
+import { useState, type KeyboardEvent } from 'react';
+import { type FindingView, type OverviewData } from '../api.ts';
 import { useApi, navigate } from '../hooks.ts';
 import {
   EmptyState,
@@ -8,39 +9,169 @@ import {
   IconActivity,
   IconAlert,
   IconBell,
-  IconBug,
   IconCheck,
-  IconClock,
   IconPlus,
   IconRefresh,
   IconServer,
   IconShield,
   KevBadge,
   PriorityBadge,
-  ScanStatusBadge,
   SeverityBadge,
   TableSkeleton,
-  IconPlay,
 } from '../components/ui.tsx';
-import { relativeTime, shortImageId } from '../format.ts';
+import { exposureShortLabel, relativeTime, shortImageId } from '../format.ts';
+
+const PRIORITY_LABELS: Record<string, string> = {
+  P1: 'Fix today',
+  P2: 'This week',
+  P3: 'Scheduled',
+  P4: 'Backlog',
+};
+
+function RiskStat({
+  label,
+  value,
+  meta,
+  tone,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  meta: string;
+  tone: 'critical' | 'high' | 'kev' | 'workloads';
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className={`ops-stat is-${tone}`} onClick={onClick}>
+      <span className="ops-stat-label">
+        <span className="ops-stat-mark" aria-hidden="true" />
+        {label}
+      </span>
+      <span className="ops-stat-value">{value}</span>
+      <span className="ops-stat-meta">{meta}</span>
+    </button>
+  );
+}
+
+function CoverageRow({
+  tone,
+  label,
+  value,
+  detail,
+  onClick,
+}: {
+  tone: 'online' | 'pending' | 'offline' | 'unknown' | 'running';
+  label: string;
+  value: string;
+  detail?: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className={`status-dot ${tone}`} aria-hidden="true" />
+      <span className="ops-coverage-label">{label}</span>
+      <span className="ops-coverage-value">{value}</span>
+      {detail ? <span className="ops-coverage-detail">{detail}</span> : null}
+    </>
+  );
+
+  return onClick ? (
+    <button type="button" className="ops-coverage-row" onClick={onClick}>
+      {content}
+    </button>
+  ) : (
+    <div className="ops-coverage-row">{content}</div>
+  );
+}
+
+function ActivityIcon({ kind }: { kind: string }) {
+  if (kind === 'resolved') return <IconCheck width={12} height={12} />;
+  if (kind === 'changed') return <IconRefresh width={12} height={12} />;
+  if (kind === 'reappeared') return <IconBell width={12} height={12} />;
+  return <IconAlert width={12} height={12} />;
+}
+
+function eventDescription(kind: string): string {
+  if (kind === 'resolved') return 'Finding no longer reported';
+  if (kind === 'changed') return 'Finding updated';
+  if (kind === 'reappeared') return 'Finding reappeared';
+  return 'New finding detected';
+}
+
+function workloadSummary(finding: FindingView): string {
+  const containers =
+    finding.containerCount > 0
+      ? `${finding.containerCount} container${finding.containerCount === 1 ? '' : 's'}${
+          finding.runningContainerCount > 0 ? ` · ${finding.runningContainerCount} running` : ''
+        }`
+      : 'Image only';
+  return `${containers}${finding.environmentNames.length > 0 ? ` · ${finding.environmentNames.join(', ')}` : ''}`;
+}
+
+function scanOutcome(scan: OverviewData['scans']['recent'][number]): {
+  text: string;
+  error: boolean;
+  title: string;
+} {
+  if (scan.status === 'failed') {
+    const text = scan.errorCode ? scan.errorCode.replace(/_/g, ' ') : 'Scan failed';
+    return {
+      text,
+      error: true,
+      title: [scan.errorCode, scan.errorMessage].filter(Boolean).join(' — ') || text,
+    };
+  }
+  if (scan.status === 'success') {
+    return {
+      text: scan.total > 0 ? `C${scan.critical} H${scan.high} M${scan.medium}` : 'No findings',
+      error: false,
+      title:
+        scan.total > 0
+          ? `${scan.critical} critical · ${scan.high} high · ${scan.medium} medium`
+          : 'No findings',
+    };
+  }
+  if (scan.status === 'cancelled') return { text: 'Cancelled', error: false, title: 'Scan cancelled' };
+  if (scan.status === 'running') return { text: 'Running', error: false, title: 'Scan running' };
+  if (scan.status === 'queued') return { text: 'Queued', error: false, title: 'Scan queued' };
+  return { text: scan.status, error: false, title: scan.status };
+}
 
 export function Overview() {
   const { data, error, loading, refresh } = useApi<OverviewData>('/overview', { intervalMs: 15_000 });
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   if (loading && !data) {
     return (
-      <div className="vstack" style={{ gap: 16 }}>
-        <div className="kpi-grid">
+      <div className="ops-page ops-loading" role="status" aria-live="polite" aria-label="Loading overview">
+        <div className="ops-loading-stats">
           {[0, 1, 2, 3].map((index) => (
-            <div key={index} className="kpi">
-              <div className="skeleton" style={{ width: 110 }} />
-              <div className="skeleton" style={{ width: 64, height: 28, marginTop: 10 }} />
-              <div className="skeleton" style={{ width: 150, marginTop: 10 }} />
+            <div key={index} className="ops-loading-stat">
+              <div className="skeleton" style={{ width: 92, height: 9 }} />
+              <div className="skeleton" style={{ width: 52, height: 30, marginTop: 8 }} />
+              <div className="skeleton" style={{ width: 140, height: 9, marginTop: 8 }} />
             </div>
           ))}
         </div>
-        <div className="card">
-          <TableSkeleton rows={5} columns={5} />
+        <div className="ops-loading-grid">
+          <div className="ops-loading-panel">
+            <TableSkeleton rows={6} columns={5} />
+          </div>
+          <div className="ops-side">
+            <div className="ops-loading-panel">
+              <div className="skeleton" style={{ width: 120, height: 11 }} />
+              <div className="skeleton" style={{ width: '82%', height: 22, marginTop: 12 }} />
+              <div className="skeleton" style={{ width: '64%', height: 10, marginTop: 8 }} />
+              <div className="skeleton" style={{ width: '92%', height: 10, marginTop: 18 }} />
+              <div className="skeleton" style={{ width: '76%', height: 10, marginTop: 8 }} />
+            </div>
+            <div className="ops-loading-panel">
+              <div className="skeleton" style={{ width: 150, height: 11 }} />
+              <div className="skeleton" style={{ width: '88%', height: 10, marginTop: 12 }} />
+              <div className="skeleton" style={{ width: '68%', height: 10, marginTop: 8 }} />
+              <div className="skeleton" style={{ width: '80%', height: 10, marginTop: 8 }} />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -54,34 +185,41 @@ export function Overview() {
 
   if (data.environments.length === 0) {
     return (
-      <div className="card">
-        <div className="empty" style={{ padding: '56px 24px' }}>
-          <IconShield width={34} height={34} />
-          <h3>Connect your first Docker environment</h3>
-          <p>
+      <div className="ops-page">
+        <section className="card ops-empty-page" aria-label="Connect your first Docker environment">
+          <EmptyState
+            icon={<IconShield width={30} height={30} />}
+            title="Connect your first Docker environment"
+            action={
+              <div className="hstack" style={{ marginTop: 6 }}>
+                <button type="button" className="btn primary" onClick={() => navigate('/environments')}>
+                  <IconPlus width={14} height={14} /> Add environment
+                </button>
+                <button type="button" className="btn ghost" onClick={() => navigate('/settings')}>
+                  Review scan policy
+                </button>
+              </div>
+            }
+          >
             DockSentinel discovers containers and images from a Docker Engine, then scans their images with Trivy.
             Start with the local socket on this host, or a secure remote endpoint.
-          </p>
-          <div className="hstack" style={{ marginTop: 6 }}>
-            <button type="button" className="btn primary" onClick={() => navigate('/environments')}>
-              <IconPlus width={15} height={15} /> Add environment
-            </button>
-            <button type="button" className="btn ghost" onClick={() => navigate('/settings')}>
-              Review scan policy
-            </button>
-          </div>
-          <p className="tiny dim" style={{ marginTop: 18, maxWidth: 560 }}>
+          </EmptyState>
+          <p className="ops-empty-note">
             Docker socket access is effectively privileged. Prefer local sockets or TLS-protected endpoints, and never
             expose an unauthenticated Docker TCP API.
           </p>
-        </div>
+        </section>
       </div>
     );
   }
 
   const waitingForFirstScan = data.scans.success24h === 0;
   const scansInFlight = data.scans.queued + data.scans.running;
+  const focus = data.findings.top[0] ?? null;
+  const selected = data.findings.top.find((finding) => finding.id === selectedId) ?? focus;
+
   const offline = data.environments.filter((environment) => environment.status === 'offline');
+  const online = data.environments.filter((environment) => environment.status === 'online').length;
   const attention: { label: string; detail: string; path: string; tone: 'danger' | 'warn' | 'neutral' }[] = [];
   if (offline.length > 0) {
     attention.push({
@@ -140,368 +278,427 @@ export function Overview() {
     });
   }
 
+  const recentScans = data.scans.recent.slice(0, 3);
+  const recentEvents = data.events.slice(0, 4);
+  const latestSuccess = data.scans.recent.find((scan) => scan.status === 'success');
+  const scanTone = data.scans.running > 0 ? 'running' : data.scans.queued > 0 ? 'pending' : 'online';
+
+  function openFinding(finding: FindingView): void {
+    navigate(`/vulnerabilities?q=${encodeURIComponent(finding.vulnId)}`);
+  }
+
+  function onRowKey(event: KeyboardEvent<HTMLTableRowElement>, finding: FindingView): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openFinding(finding);
+    }
+  }
+
+  function attentionTone(tone: 'danger' | 'warn' | 'neutral'): 'offline' | 'pending' | 'unknown' {
+    if (tone === 'danger') return 'offline';
+    if (tone === 'warn') return 'pending';
+    return 'unknown';
+  }
+
+
   return (
-    <div className="vstack" style={{ gap: 18 }}>
+    <div className="ops-page">
       {waitingForFirstScan ? (
-        <section className="card" aria-label="Getting started">
-          <div className="card-body hstack" style={{ alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
-            <span className="welcome-step-icon" aria-hidden="true">
-              <IconActivity width={18} height={18} />
+        <section className="ops-banner" aria-label="Getting started">
+          <span className="ops-banner-icon" aria-hidden="true">
+            <IconActivity width={15} height={15} />
+          </span>
+          <div className="ops-banner-copy">
+            <strong>{scansInFlight > 0 ? 'Scanning your images…' : 'Your Docker host is connected'}</strong>
+            <span>
+              {scansInFlight > 0
+                ? `${scansInFlight} scan${scansInFlight === 1 ? '' : 's'} queued or running. Results appear as each image finishes.`
+                : 'Discovery is complete, but no scan has finished yet. Open Images to queue a scan or check the host status.'}
             </span>
-            <div className="vstack" style={{ gap: 3, flex: 1, minWidth: 260 }}>
-              <strong>{scansInFlight > 0 ? 'Scanning your images…' : 'Your Docker host is connected'}</strong>
-              <span className="small dim">
-                {scansInFlight > 0
-                  ? `${scansInFlight} scan${scansInFlight === 1 ? '' : 's'} queued or running. Results appear as each image finishes.`
-                  : 'Discovery is complete, but no scan has finished yet. Open Images to queue a scan or check the host status.'}
-              </span>
-            </div>
-            <div className="hstack">
-              <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
-                <IconServer width={13} height={13} /> Images
-              </button>
-              <button type="button" className="btn small ghost" onClick={() => navigate('/notifications')}>
-                <IconBell width={13} height={13} /> Set up alerts
-              </button>
-            </div>
+          </div>
+          <div className="ops-banner-actions">
+            <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
+              <IconServer width={12} height={12} /> Images
+            </button>
+            <button type="button" className="btn small ghost" onClick={() => navigate('/notifications')}>
+              <IconBell width={12} height={12} /> Set up alerts
+            </button>
           </div>
         </section>
       ) : null}
-      <div className="kpi-grid">
-        <button type="button" className="kpi critical" onClick={() => navigate('/vulnerabilities?severity=CRITICAL')} style={{ textAlign: 'left', cursor: 'pointer' }}>
-          <div className="kpi-label">
-            <IconAlert width={13} height={13} /> Critical open
-          </div>
-          <div className="kpi-value">{data.counts.critical}</div>
-          <div className="kpi-foot">
-            {data.counts.fixable > 0 ? `${data.counts.fixable} fixable findings overall` : 'No fixes listed yet'} ·{' '}
-            {data.counts.total} open findings
-          </div>
-        </button>
-        <button type="button" className="kpi high" onClick={() => navigate('/vulnerabilities?severity=HIGH')} style={{ textAlign: 'left', cursor: 'pointer' }}>
-          <div className="kpi-label">
-            <IconBug width={13} height={13} /> High open
-          </div>
-          <div className="kpi-value">{data.counts.high}</div>
-          <div className="kpi-foot">
-            {data.changes.newFindings24h} new in 24h · {data.counts.kev} known-exploited overall
-          </div>
-        </button>
-        <button type="button" className="kpi kev" onClick={() => navigate('/vulnerabilities?kev=true')} style={{ textAlign: 'left', cursor: 'pointer' }}>
-          <div className="kpi-label">
-            <IconShield width={13} height={13} /> Known exploited
-          </div>
-          <div className="kpi-value">{data.counts.kev}</div>
-          <div className="kpi-foot">
-            {data.kev.available
-              ? `CISA KEV · ${data.kev.entryCount} ${data.kev.entryCount === 1 ? 'entry' : 'entries'} · synced ${relativeTime(data.kev.syncedAt)}`
-              : 'KEV catalog not synchronised yet'}
-          </div>
-        </button>
-        <button
-          type="button"
-          className="kpi workloads"
+
+      <div className="ops-risk" aria-label="Security posture">
+        <RiskStat
+          label="Critical open"
+          value={data.counts.critical}
+          meta={`${data.counts.fixable} fixable overall · ${data.counts.total} open`}
+          tone="critical"
+          onClick={() => navigate('/vulnerabilities?severity=CRITICAL')}
+        />
+        <RiskStat
+          label="High open"
+          value={data.counts.high}
+          meta={`${data.changes.newFindings24h} new in 24h`}
+          tone="high"
+          onClick={() => navigate('/vulnerabilities?severity=HIGH')}
+        />
+        <RiskStat
+          label="Known exploited"
+          value={data.counts.kev}
+          meta={
+            data.kev.available
+              ? `CISA KEV · synced ${relativeTime(data.kev.syncedAt)}`
+              : 'KEV catalog not synchronised'
+          }
+          tone="kev"
+          onClick={() => navigate('/vulnerabilities?kev=true')}
+        />
+        <RiskStat
+          label="Affected workloads"
+          value={data.workloads.affectedRunningContainers}
+          meta={`${data.workloads.affectedImages} of ${data.workloads.totalImages} images affected`}
+          tone="workloads"
           onClick={() => navigate('/containers?status=running')}
-          style={{ textAlign: 'left', cursor: 'pointer' }}
-        >
-          <div className="kpi-label">
-            <IconServer width={13} height={13} /> Affected workloads
-          </div>
-          <div className="kpi-value">{data.workloads.affectedRunningContainers}</div>
-          <div className="kpi-foot">
-            running containers with critical/high findings · {data.workloads.affectedImages} of{' '}
-            {data.workloads.totalImages} images affected
-          </div>
-        </button>
+        />
       </div>
 
-      <div className="grid-2">
-        <section className="card" aria-labelledby="priority-queue-title">
-          <div className="card-header">
-            <div className="vstack">
-              <h2 className="section-title" id="priority-queue-title">
-                Priority queue
-              </h2>
-              <span className="section-subtitle">
-                Ranked by severity, known exploitation, fixes and exposure — not a risk score.
-              </span>
-            </div>
-            <div className="hstack">
-              <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh overview">
-                <IconRefresh width={14} height={14} />
-              </button>
-              <button type="button" className="btn small ghost" onClick={() => navigate('/vulnerabilities')}>
-                View all
-              </button>
-            </div>
-          </div>
-          {data.findings.top.length === 0 ? (
-            <EmptyState
-              icon={<IconCheck width={26} height={26} />}
-              title="No critical or high findings"
-              action={
-                <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
-                  Review image coverage
-                </button>
-              }
-            >
-              {data.counts.total === 0
-                ? 'Scans have not reported vulnerabilities for the current images. Check scan activity to confirm freshness.'
-                : 'No critical or high severities are currently open.'}
-            </EmptyState>
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <caption className="sr-only">Highest priority open findings</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Priority</th>
-                    <th scope="col">Severity</th>
-                    <th scope="col">Vulnerability</th>
-                    <th scope="col">Image / workload</th>
-                    <th scope="col">Signals</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.findings.top.map((finding) => (
-                    <tr
-                      key={finding.id}
-                      className="clickable"
-                      onClick={() => navigate(`/vulnerabilities?q=${encodeURIComponent(finding.vulnId)}`)}
-                    >
-                      <td>
-                        <PriorityBadge tier={finding.priority.tier} factors={finding.priority.factors} />
-                      </td>
-                      <td>
-                        <SeverityBadge severity={finding.severity} />
-                      </td>
-                      <td>
-                        <div className="cell-main mono id">{finding.vulnId}</div>
-                        <div className="cell-sub truncate" title={finding.title ?? undefined}>
-                          {finding.pkgName} {finding.installedVersion ? `· ${finding.installedVersion}` : ''}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="cell-main truncate" title={finding.containers[0]?.imageRef}>
-                          {finding.containers[0]?.imageRef ?? shortImageId(finding.imageId)}
-                        </div>
-                        <div className="cell-sub">
-                          {finding.containerCount > 0
-                            ? `${finding.containerCount} container${finding.containerCount === 1 ? '' : 's'}${
-                                finding.runningContainerCount > 0 ? ` · ${finding.runningContainerCount} running` : ''
-                              }`
-                            : 'Image only'}
-                          {finding.environmentNames.length > 0 ? ` · ${finding.environmentNames.join(', ')}` : ''}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="hstack" style={{ flexWrap: 'wrap', gap: 4 }}>
-                          <KevBadge kev={finding.kev} />
-                          {finding.fixedVersion ? <FixBadge fixedVersion={finding.fixedVersion} /> : null}
-                          {finding.exposure ? <ExposureBadge state={finding.exposure} /> : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        <div className="vstack" style={{ gap: 16 }}>
-          <section className="card" aria-labelledby="attention-title">
-            <div className="card-header">
-              <h2 className="section-title" id="attention-title">
-                Needs attention
-              </h2>
-              <span className={`badge ${attention.length > 0 ? 'warn' : 'ok'}`}>
-                {attention.length > 0 ? `${attention.length} item${attention.length === 1 ? '' : 's'}` : 'All clear'}
-              </span>
-            </div>
-            <div className="card-body" style={{ padding: '6px 16px' }}>
-              {attention.length === 0 ? (
-                <div className="empty" style={{ padding: '24px 4px' }}>
-                  <IconCheck width={22} height={22} />
-                  <p style={{ maxWidth: 320 }}>
-                    Integrations are healthy: every environment was contacted, scans are recent and alerts are
-                    delivered.
-                  </p>
-                </div>
-              ) : (
-                attention.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    className="attr-row"
-                    style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer' }}
-                    onClick={() => navigate(item.path)}
-                  >
-                    <span
-                      className={`status-dot ${item.tone === 'danger' ? 'offline' : item.tone === 'warn' ? 'pending' : 'unknown'}`}
-                      aria-hidden="true"
-                    />
-                    <span className="vstack" style={{ gap: 0 }}>
-                      <span style={{ fontWeight: 550 }}>{item.label}</span>
-                      <span className="cell-sub" style={{ whiteSpace: 'normal' }}>
-                        {item.detail}
-                      </span>
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="card" aria-labelledby="environments-title">
-            <div className="card-header">
-              <h2 className="section-title" id="environments-title">
-                Environments
-              </h2>
-              <button type="button" className="btn small ghost" onClick={() => navigate('/environments')}>
-                Manage
-              </button>
-            </div>
-            <div className="card-body" style={{ padding: '8px 16px' }}>
-              {data.environments.map((environment) => (
-                <div className="attr-row" key={environment.id}>
-                  <span
-                    className={`status-dot ${
-                      environment.status === 'online' ? 'online' : environment.status === 'offline' ? 'offline' : 'unknown'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <span className="vstack" style={{ gap: 0, flex: 1 }}>
-                    <span style={{ fontWeight: 550 }}>{environment.name}</span>
-                    <span className="cell-sub">
-                      {environment.containers} containers · {environment.images} images · contacted{' '}
-                      {relativeTime(environment.lastContactAt)}
-                    </span>
-                  </span>
-                  <span className="cell-sub">{environment.status}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="card" aria-labelledby="scan-summary-title">
-            <div className="card-header">
-              <h2 className="section-title" id="scan-summary-title">
-                Scans
-              </h2>
-              {data.scans.running > 0 ? (
-                <ScanStatusBadge status="running" />
-              ) : (
-                <span className="badge neutral">Idle</span>
-              )}
-            </div>
-            <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="env-stat">
-                <strong>{data.scans.running}</strong>
-                <span>Running</span>
-              </div>
-              <div className="env-stat">
-                <strong>{data.scans.queued}</strong>
-                <span>Queued</span>
-              </div>
-              <div className="env-stat">
-                <strong>{data.scans.success24h}</strong>
-                <span>Succeeded 24h</span>
-              </div>
-              <div className="env-stat">
-                <strong>{data.scans.failed24h}</strong>
-                <span>Failed 24h</span>
-              </div>
-              <div className="env-stat" style={{ gridColumn: '1 / -1' }}>
-                <span>Last successful scan</span>
-                <strong style={{ fontSize: 13 }}>{relativeTime(data.scans.lastSuccessfulAt)}</strong>
-              </div>
-              <div className="hstack" style={{ gridColumn: '1 / -1', gap: 6 }}>
-                <button type="button" className="btn small ghost" onClick={() => navigate('/scans')}>
-                  <IconActivity width={14} height={14} /> Scans
-                </button>
-                <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
-                  <IconPlay width={13} height={13} /> Scan images
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-
-      <section className="card" aria-labelledby="recent-title">
-        <div className="card-header">
-          <div className="vstack">
-            <h2 className="section-title" id="recent-title">
-              Recent findings activity
-            </h2>
-            <span className="section-subtitle">
-              {data.changes.newFindings24h} new · {data.changes.resolvedFindings24h} resolved in the last 24 hours
-            </span>
-          </div>
-          <button type="button" className="btn small ghost" onClick={() => navigate('/vulnerabilities?state=resolved')}>
-            Resolved findings
-          </button>
-        </div>
-        {data.events.length === 0 ? (
-          <EmptyState
-            icon={<IconClock width={24} height={24} />}
-            title="No finding changes recorded yet"
-            action={
-              <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
-                Review scanning
-              </button>
-            }
-          >
-            Changes appear here after a successful scan identifies, resolves or re-classifies a vulnerability.
-          </EmptyState>
-        ) : (
-          <div className="recent-list">
-            {data.events.map((event) => (
-              <div className="recent-item" key={event.id}>
-                <span className={`recent-icon ${event.kind}`} aria-hidden="true">
-                  {event.kind === 'resolved' ? (
-                    <IconCheck width={13} height={13} />
-                  ) : event.kind === 'changed' ? (
-                    <IconRefresh width={13} height={13} />
-                  ) : event.kind === 'appeared' ? (
-                    <IconAlert width={13} height={13} />
-                  ) : (
-                    <IconBell width={13} height={13} />
-                  )}
+      <div className="ops-grid">
+        <div className="ops-primary">
+          <section className="card ops-panel" aria-labelledby="priority-queue-title">
+            <div className="ops-panel-head">
+              <div className="ops-panel-heading">
+                <h2 className="ops-panel-title" id="priority-queue-title">
+                  Action queue
+                </h2>
+                <span className="ops-panel-sub">
+                  Ranked by severity, known exploitation, fixes and exposure — not a risk score.
                 </span>
-                <div className="vstack" style={{ gap: 1, flex: 1, minWidth: 0 }}>
-                  <span className="small">
-                    {event.kind === 'resolved'
-                      ? 'Finding no longer reported'
-                      : event.kind === 'changed'
-                        ? 'Finding updated'
-                        : event.kind === 'reappeared'
-                          ? 'Finding reappeared'
-                          : 'New finding detected'}{' '}
-                    <span className="mono">{event.vulnId}</span> in {event.pkgName}
-                  </span>
-                  <span className="cell-sub truncate">
-                    {event.imageRef ?? shortImageId(event.imageId)} · severity {event.severity.toLowerCase()} ·{' '}
-                    {relativeTime(event.createdAt)}
-                  </span>
-                </div>
+              </div>
+              <span className="ops-panel-meta">{data.findings.top.length} highest-risk</span>
+              <div className="ops-panel-actions">
+                <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh overview">
+                  <IconRefresh width={13} height={13} />
+                </button>
+                <button type="button" className="btn small ghost" onClick={() => navigate('/vulnerabilities')}>
+                  View all
+                </button>
+              </div>
+            </div>
+            {data.findings.top.length === 0 ? (
+              <EmptyState
+                icon={<IconCheck width={24} height={24} />}
+                title="No critical or high findings"
+                action={
+                  <button type="button" className="btn small ghost" onClick={() => navigate('/images')}>
+                    Review image coverage
+                  </button>
+                }
+              >
+                {data.counts.total === 0
+                  ? 'Scans have not reported vulnerabilities for the current images. Check scan activity to confirm freshness.'
+                  : 'No critical or high severities are currently open.'}
+              </EmptyState>
+            ) : (
+              <div className="ops-table-wrap">
+                <table className="ops-table">
+                  <caption className="sr-only">Highest priority open findings</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Priority</th>
+                      <th scope="col">Vulnerability</th>
+                      <th scope="col">Package</th>
+                      <th scope="col">Workload</th>
+                      <th scope="col">Signals</th>
+                      <th scope="col">Seen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.findings.top.map((finding) => (
+                      <tr
+                        key={finding.id}
+                        tabIndex={0}
+                        onClick={() => openFinding(finding)}
+                        onKeyDown={(event) => onRowKey(event, finding)}
+                        onFocus={() => setSelectedId(finding.id)}
+                      >
+                        <td>
+                          <div className="ops-cell-prio">
+                            <PriorityBadge tier={finding.priority.tier} factors={finding.priority.factors} />
+                            <SeverityBadge severity={finding.severity} />
+                          </div>
+                        </td>
+                        <td>
+                          <div className="ops-vuln-id">{finding.vulnId}</div>
+                          <div className="ops-vuln-title" title={finding.title ?? undefined}>
+                            {finding.title ?? `${finding.pkgName} requires review`}
+                          </div>
+                          <div className="ops-mobile-signals">
+                            <KevBadge kev={finding.kev} />
+                            {finding.exposure ? (
+                              <ExposureBadge state={finding.exposure} reason={finding.containers[0]?.exposureReason} />
+                            ) : null}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="ops-mono" title={finding.pkgName}>
+                            {finding.pkgName}
+                          </div>
+                          <div className={`ops-sub ${finding.fixedVersion ? 'is-fix' : ''}`}>
+                            {finding.installedVersion || 'unknown'}
+                            {finding.fixedVersion ? ` → ${finding.fixedVersion}` : ' · no fix'}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="ops-workload" title={finding.containers[0]?.imageRef ?? undefined}>
+                            {finding.containers[0]?.imageRef ?? shortImageId(finding.imageId)}
+                          </div>
+                          <div className="ops-sub" title={workloadSummary(finding)}>
+                            {workloadSummary(finding)}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="ops-signals">
+                            <KevBadge kev={finding.kev} />
+                            {finding.exposure ? (
+                              <ExposureBadge state={finding.exposure} reason={finding.containers[0]?.exposureReason} />
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="ops-age">{relativeTime(finding.firstSeenAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="card ops-panel ops-activity" aria-labelledby="recent-activity-title">
+            <div className="ops-panel-head">
+              <div className="ops-panel-heading">
+                <h2 className="ops-panel-title" id="recent-activity-title">
+                  Recent activity
+                </h2>
+                <span className="ops-panel-sub">
+                  Latest scans and finding changes · {data.changes.newFindings24h} new ·{' '}
+                  {data.changes.resolvedFindings24h} resolved in 24h
+                </span>
+              </div>
+              <div className="ops-panel-actions">
                 <button
                   type="button"
                   className="btn small ghost"
-                  onClick={() =>
-                    navigate(
-                      `/vulnerabilities?q=${encodeURIComponent(event.vulnId)}&image=${encodeURIComponent(event.imageId)}`,
-                    )
-                  }
+                  onClick={() => navigate('/vulnerabilities?state=resolved')}
                 >
-                  Open
+                  Resolved findings
                 </button>
               </div>
+            </div>
+
+            <div className="ops-activity-section">
+              <div className="ops-subhead">
+                <span>Recent scans</span>
+                <button type="button" className="ops-link" onClick={() => navigate('/scans')}>
+                  View scans
+                </button>
+              </div>
+              {recentScans.length === 0 ? (
+                <div className="ops-scan-empty">
+                  No scans recorded yet.{' '}
+                  <button type="button" className="ops-link" onClick={() => navigate('/images')}>
+                    Open images
+                  </button>
+                </div>
+              ) : (
+                recentScans.map((scan) => {
+                  const outcome = scanOutcome(scan);
+                  return (
+                    <button
+                      key={scan.id}
+                      type="button"
+                      className="ops-scan-row"
+                      onClick={() => navigate('/scans')}
+                      aria-label={`Open scans for ${scan.imageRef}`}
+                    >
+                      <span className={`status-dot ${scan.status}`} aria-hidden="true" />
+                      <span className="ops-scan-image" title={scan.imageRef}>
+                        {scan.imageRef}
+                      </span>
+                      <span className="ops-scan-meta">
+                        {scan.profile} · {relativeTime(scan.finishedAt ?? scan.startedAt ?? scan.queuedAt)}
+                      </span>
+                      <span className={`ops-scan-result ${outcome.error ? 'is-error' : ''}`} title={outcome.title}>
+                        {outcome.text}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="ops-activity-section">
+              <div className="ops-subhead">
+                <span>Finding activity</span>
+                <button type="button" className="ops-link" onClick={() => navigate('/vulnerabilities')}>
+                  All findings
+                </button>
+              </div>
+              {recentEvents.length === 0 ? (
+                <div className="ops-scan-empty">
+                  No finding changes recorded yet.{' '}
+                  <button type="button" className="ops-link" onClick={() => navigate('/images')}>
+                    Review scanning
+                  </button>
+                </div>
+              ) : (
+                <div className="ops-activity-list">
+                  {recentEvents.map((event) => (
+                    <div className="ops-activity-item" key={event.id}>
+                      <span className={`ops-activity-icon is-${event.kind}`} aria-hidden="true">
+                        <ActivityIcon kind={event.kind} />
+                      </span>
+                      <div>
+                        <div className="ops-activity-copy">
+                          {eventDescription(event.kind)} <span className="mono">{event.vulnId}</span> in {event.pkgName}
+                        </div>
+                        <div className="ops-activity-meta">
+                          {event.imageRef ?? shortImageId(event.imageId)} · severity {event.severity.toLowerCase()} ·{' '}
+                          {relativeTime(event.createdAt)}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="ops-activity-open"
+                        onClick={() =>
+                          navigate(
+                            `/vulnerabilities?q=${encodeURIComponent(event.vulnId)}&image=${encodeURIComponent(event.imageId)}`,
+                          )
+                        }
+                      >
+                        Open
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+        <div className="ops-side">
+          {selected ? (
+            <section className="card ops-panel ops-focus" aria-labelledby="focus-title">
+              <div className="ops-focus-kicker">
+                <SeverityBadge severity={selected.severity} />
+                <PriorityBadge tier={selected.priority.tier} factors={selected.priority.factors} />
+                <KevBadge kev={selected.kev} />
+                <FixBadge fixedVersion={selected.fixedVersion} />
+              </div>
+              <div className="ops-focus-cve">
+                Priority focus · {PRIORITY_LABELS[selected.priority.tier] ?? selected.priority.tier}
+              </div>
+              <h2 id="focus-title">{selected.vulnId}</h2>
+              <p className="ops-focus-title">{selected.title ?? `${selected.pkgName} requires review`}</p>
+              <dl className="ops-focus-meta">
+                <dt>Package</dt>
+                <dd>
+                  {selected.pkgName} · {selected.installedVersion || 'unknown'}
+                </dd>
+                <dt>Fixed</dt>
+                <dd className={selected.fixedVersion ? 'is-ok' : 'is-dim'}>
+                  {selected.fixedVersion ?? 'No fix listed'}
+                </dd>
+                <dt>Workload</dt>
+                <dd>{selected.containers[0]?.imageRef ?? shortImageId(selected.imageId)}</dd>
+                <dt>Exposure</dt>
+                <dd>{exposureShortLabel(selected.exposure)}</dd>
+                <dt>First seen</dt>
+                <dd>{relativeTime(selected.firstSeenAt)}</dd>
+              </dl>
+              <div className="ops-factors">
+                {selected.priority.factors.map((factor) => (
+                  <span className="ops-factor" key={factor}>
+                    {factor}
+                  </span>
+                ))}
+              </div>
+              <div className="ops-actions">
+                <button type="button" className="btn primary" onClick={() => openFinding(selected)}>
+                  Review finding
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() =>
+                    navigate(`/images?image=${encodeURIComponent(selected.imageId)}`)
+                  }
+                >
+                  Image &amp; containers
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          <section className="card ops-panel" aria-labelledby="coverage-title">
+            <div className="ops-panel-head">
+              <div className="ops-panel-heading">
+                <h2 className="ops-panel-title" id="coverage-title">
+                  Coverage &amp; trust
+                </h2>
+                <span className="ops-panel-sub">
+                  {attention.length === 0 ? 'All integrations healthy' : `${attention.length} item${attention.length === 1 ? '' : 's'} need attention`}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="ops-panel-link"
+                onClick={() => navigate('/environments')}
+                title="Manage Docker hosts"
+              >
+                {online}/{data.environments.length} hosts
+              </button>
+            </div>
+            <CoverageRow
+              tone={scanTone}
+              label="Scan queue"
+              value={`${data.scans.running + data.scans.queued} active`}
+              detail={`${data.scans.running} running · ${data.scans.queued} queued · ${data.scans.success24h} succeeded / ${data.scans.failed24h} failed in 24h`}
+              onClick={() => navigate('/scans')}
+            />
+            <CoverageRow
+              tone="online"
+              label="Last successful scan"
+              value={relativeTime(data.scans.lastSuccessfulAt)}
+              detail={latestSuccess?.imageRef ?? `${data.scans.success24h} succeeded in 24h`}
+              onClick={() => navigate('/scans')}
+            />
+            <CoverageRow
+              tone={data.workloads.staleImages > 0 ? 'pending' : 'online'}
+              label="Inventory"
+              value={`${online}/${data.environments.length} hosts`}
+              detail={`${data.workloads.runningContainers} running · ${data.workloads.totalImages} images · ${data.workloads.staleImages} stale`}
+              onClick={() => navigate('/containers?status=running')}
+            />
+            {attention.map((item) => (
+              <CoverageRow
+                key={item.label}
+                tone={attentionTone(item.tone)}
+                label={item.label}
+                value="Open"
+                detail={item.detail}
+                onClick={() => navigate(item.path)}
+              />
             ))}
-          </div>
-        )}
-      </section>
+            {attention.length === 0 ? (
+              <div className="ops-all-clear">
+                <IconCheck width={14} height={14} />
+                <span>Every environment was contacted, scans are recent and alerts are delivered.</span>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      </div>
+
+
     </div>
   );
 }

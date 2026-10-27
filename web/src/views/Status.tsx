@@ -72,7 +72,7 @@ export function Status() {
   const currentUpdate = update ?? data.update;
 
   return (
-    <div className="vstack" style={{ gap: 16 }}>
+    <div className="page-stack">
       <div className="grid-auto">
         <section className="card" aria-label="Application">
           <div className="card-header">
@@ -130,7 +130,7 @@ export function Status() {
             {dataDisk ? (
               <>
                 <div className="spread" style={{ marginTop: 12 }}><span>Data volume · {formatBytes(dataDisk.usedBytes)} used</span><span className="dim">{diskPercent}%</span></div>
-                <div className="severity-bar" style={{ marginTop: 6 }}><span style={{ width: `${Math.min(100, diskPercent ?? 0)}%` }} /></div>
+                <div className="disk-meter" style={{ marginTop: 6 }}><span style={{ width: `${Math.min(100, diskPercent ?? 0)}%` }} /></div>
                 <div className="tiny dim" style={{ marginTop: 6 }}>{formatBytes(dataDisk.freeBytes)} free of {formatBytes(dataDisk.totalBytes)}</div>
                 {cacheDisk ? <div className="tiny dim" style={{ marginTop: 6 }}>Trivy cache volume: {formatBytes(cacheDisk.freeBytes)} free of {formatBytes(cacheDisk.totalBytes)}</div> : null}
               </>
@@ -142,7 +142,7 @@ export function Status() {
       <section className="card" aria-label="Docker hosts">
         <div className="card-header"><div><h2 className="section-title">Docker hosts</h2><p className="section-subtitle">Connectivity at a glance</p></div></div>
         {data.environments.length === 0 ? <EmptyState title="No Docker hosts" icon={<IconServer width={22} height={22} />}><p>Connect a host from the welcome screen or Docker hosts page.</p></EmptyState> : (
-          <div className="table-wrap"><table className="table"><thead><tr><th>Host</th><th>Status</th><th>Last contact</th><th>Scanning</th></tr></thead><tbody>
+          <div className="table-wrap"><table className="table"><caption className="sr-only">Docker host connectivity</caption><thead><tr><th scope="col">Host</th><th scope="col">Status</th><th scope="col">Last contact</th><th scope="col">Scanning</th></tr></thead><tbody>
             {data.environments.map((environment) => (
               <tr key={environment.id}>
                 <td>{environment.name}</td>
@@ -164,7 +164,7 @@ export function Status() {
         </div>
         <div className="card-body">
           {data.backups.items.length === 0 ? <div className="note">No backups yet. Create one before upgrading or making changes.</div> : (
-            <div className="table-wrap"><table className="table"><thead><tr><th>Backup</th><th>Created</th><th>Size</th><th>Restore</th></tr></thead><tbody>
+            <div className="table-wrap"><table className="table"><caption className="sr-only">Database backups</caption><thead><tr><th scope="col">Backup</th><th scope="col">Created</th><th scope="col">Size</th><th scope="col">Restore</th></tr></thead><tbody>
               {data.backups.items.map((backup) => (
                 <tr key={backup.name}>
                   <td className="mono small">{backup.name}</td>

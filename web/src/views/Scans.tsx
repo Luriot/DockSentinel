@@ -76,31 +76,38 @@ export function Scans() {
   const activity = system.data?.activity;
 
   return (
-    <div className="vstack" style={{ gap: 14 }}>
-      <div className="grid-3">
-        <div className="kpi">
-          <div className="kpi-label">
-            <IconActivity width={13} height={13} /> Active now
-          </div>
-          <div className="kpi-value">{(activity?.running ?? 0) + (activity?.queued ?? 0)}</div>
-          <div className="kpi-foot">
+    <div className="page-stack">
+      <div className="scan-summary" aria-label="Scan activity summary">
+        <div className="scan-summary-item">
+          <span className="scan-summary-label">
+            <IconActivity width={12} height={12} /> Active now
+          </span>
+          <span className="scan-summary-value">{(activity?.running ?? 0) + (activity?.queued ?? 0)}</span>
+          <span className="scan-summary-meta">
             {activity?.running ?? 0} running · {activity?.queued ?? 0} queued · concurrency{' '}
             {system.data?.limits.scanConcurrency ?? '—'}
-          </div>
+          </span>
         </div>
-        <div className="kpi ok">
-          <div className="kpi-label">Succeeded (24h)</div>
-          <div className="kpi-value">{activity?.success ?? 0}</div>
-          <div className="kpi-foot">Scans completed and findings recorded</div>
+        <div className="scan-summary-item">
+          <span className="scan-summary-label">Succeeded (24h)</span>
+          <span className="scan-summary-value">{activity?.success ?? 0}</span>
+          <span className="scan-summary-meta">Scans completed and findings recorded</span>
         </div>
-        <div className="kpi critical">
-          <div className="kpi-label">Failed (24h)</div>
-          <div className="kpi-value">{activity?.failed ?? 0}</div>
-          <div className="kpi-foot">Failures keep previous findings; they are never treated as clean</div>
+        <div className="scan-summary-item">
+          <span className="scan-summary-label">Failed (24h)</span>
+          <span className="scan-summary-value">{activity?.failed ?? 0}</span>
+          <span className="scan-summary-meta">Failures keep previous findings; never treated as clean</span>
         </div>
       </div>
 
       <section className="card">
+        <div className="page-list-head">
+          <div>
+            <h2>Scan history</h2>
+            <span className="sub">Running, scheduled, successful and failed scans. Auto-refreshes every 5 seconds.</span>
+          </div>
+          <span className="meta">{data ? `${data.total} scans` : ''}</span>
+        </div>
         <div className="filters">
           <select
             className="select"
@@ -131,9 +138,6 @@ export function Scans() {
           <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh">
             <IconRefresh width={14} height={14} />
           </button>
-          <span className="tiny dim" style={{ marginLeft: 'auto' }}>
-            Auto-refreshes every 5 seconds
-          </span>
         </div>
 
         {error && !data ? <ErrorPanel error={error} onRetry={refresh} /> : null}

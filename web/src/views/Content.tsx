@@ -54,11 +54,11 @@ export function Content() {
   const hasFilters = Boolean(debouncedSearch) || Boolean(kind) || Boolean(severity) || state !== 'open';
 
   return (
-    <div className="vstack" style={{ gap: 14 }}>
+    <div className="page-stack">
       <section className="card">
         <div className="card-header">
           <div className="vstack">
-            <h2 className="section-title">Configuration &amp; secrets</h2>
+            <h2 className="section-title">Content findings</h2>
             <span className="section-subtitle">
               Opt-in Trivy image-content and image-config results. These are not host, daemon or runtime audits.
             </span>
@@ -87,19 +87,14 @@ export function Content() {
 
       <section className="card">
         <div className="filters" role="search" aria-label="Filter configuration and secret findings">
-          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
-            <IconSearch
-              width={14}
-              height={14}
-              style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-dim)' }}
-            />
+          <div className="toolbar-search">
+            <IconSearch width={14} height={14} aria-hidden="true" />
             <input
               className="input"
               placeholder="Rule, title or path"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search content findings"
-              style={{ paddingLeft: 32, width: '100%' }}
             />
           </div>
           <select
@@ -172,14 +167,15 @@ export function Content() {
         {data && data.items.length > 0 ? (
           <div className="table-wrap">
             <table className="table">
+              <caption className="sr-only">Configuration and secret findings</caption>
               <thead>
                 <tr>
-                  <th>Severity</th>
-                  <th>Type</th>
-                  <th>Finding</th>
-                  <th>Location</th>
-                  <th>Image</th>
-                  <th>Last seen</th>
+                  <th scope="col">Severity</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Finding</th>
+                  <th scope="col">Location</th>
+                  <th scope="col">Image</th>
+                  <th scope="col">Last seen</th>
                 </tr>
               </thead>
               <tbody>

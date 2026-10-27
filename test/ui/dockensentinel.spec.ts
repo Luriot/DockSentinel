@@ -47,7 +47,7 @@ test('sign-in validates credentials and loads the security overview', async ({ p
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
   await expect(page.getByText('Critical open').first()).toBeVisible();
-  await expect(page.locator('.kpi-value').first()).toHaveText('2');
+  await expect(page.locator('.ops-stat-value').first()).toHaveText('2');
   await page.screenshot({ path: join(SCREENS, '01-overview.png'), fullPage: true });
 });
 
@@ -261,6 +261,43 @@ test('mobile layout has no horizontal overflow and keeps navigation reachable', 
   await page.screenshot({ path: join(SCREENS, '08-mobile-overview.png'), fullPage: true });
 });
 
+test('vulnerability list remains usable on a phone and opens its detail', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.goto(`${server.url}/vulnerabilities?grouped=false`);
+  await expect(page.locator('.vuln-mobile-card').first()).toBeVisible();
+
+  const overflow = await page.evaluate('document.documentElement.scrollWidth - window.innerWidth');
+  expect(overflow).toBeLessThanOrEqual(1);
+
+  await page.locator('.vuln-mobile-card').first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Fix availability')).toBeVisible();
+});
+
+test('every top-level page avoids horizontal overflow on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+
+  for (const path of [
+    '/',
+    '/vulnerabilities',
+    '/content',
+    '/environments',
+    '/containers',
+    '/images',
+    '/scans',
+    '/notifications',
+    '/status',
+    '/settings',
+  ]) {
+    await page.goto(`${server.url}${path}`);
+    await expect(page.locator('.content')).toBeVisible();
+    const overflow = await page.evaluate('document.documentElement.scrollWidth - window.innerWidth');
+    expect(overflow, `horizontal overflow on ${path}`).toBeLessThanOrEqual(1);
+  }
+});
+
 test('keyboard basics: skip link and current-page navigation are exposed', async ({ page }) => {
   await login(page);
   await page.goto(server.url);
@@ -268,6 +305,10 @@ test('keyboard basics: skip link and current-page navigation are exposed', async
   await page.keyboard.press('Tab');
   await expect(page.locator('.skip-link')).toBeFocused();
   await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+
+  await page.locator('.ops-table tbody tr').first().focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/vulnerabilities\?q=/);
 });
 
 test('theme defaults to dark and can be changed in settings', async ({ page }) => {

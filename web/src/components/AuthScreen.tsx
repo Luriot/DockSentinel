@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api } from '../api.ts';
-import { IconAlert, IconCheck, IconShield } from './ui.tsx';
+import { IconAlert, IconShield } from './ui.tsx';
 
 interface AuthScreenProps {
   needsSetup: boolean;
@@ -37,49 +37,23 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
   }
 
   return (
-    <div className="auth">
-      <section className="auth-brand" aria-label="About DockSentinel">
-        <div>
-          <div className="brand" style={{ padding: 0 }}>
-            <span className="brand-mark">
-              <IconShield width={19} height={19} />
-            </span>
-            <span className="brand-text">
-              <span className="brand-name">DockSentinel</span>
-              <span className="brand-tag">Docker vulnerability watch</span>
-            </span>
-          </div>
-          <h1>Know what is risky in your containers, before someone else does.</h1>
-          <p className="lede">
-            DockSentinel checks your Docker images with Trivy, keeps a clear history, and alerts you when a
-            serious vulnerability appears in something you run.
-          </p>
-          <div className="auth-points">
-            <div className="auth-point">
-              <IconCheck width={16} height={16} />
-              <span>Checks images for known vulnerabilities and explains severity, fixes and exposure.</span>
-            </div>
-            <div className="auth-point">
-              <IconCheck width={16} height={16} />
-              <span>Highlights known-exploited and Internet-facing risks instead of dumping raw CVE lists.</span>
-            </div>
-            <div className="auth-point">
-              <IconCheck width={16} height={16} />
-              <span>Sends optional ntfy alerts; failures and stale results are never shown as clean scans.</span>
-            </div>
-          </div>
+    <div className="auth-solo">
+      <div className="auth-solo-inner">
+        <div className="auth-solo-brand">
+          <span className="brand-mark">
+            <IconShield width={18} height={18} />
+          </span>
+          <span className="brand-text">
+            <span className="brand-name">DockSentinel</span>
+            <span className="brand-tag">Docker vulnerability watch</span>
+          </span>
         </div>
-        <p className="auth-foot">
-          DockSentinel monitors image vulnerabilities. It is not an intrusion detection system and cannot prove
-          that a currently running service is safe.
-        </p>
-      </section>
 
-      <section className="auth-form-side">
-        <div className="auth-card">
+        <section className="auth-card" aria-labelledby="auth-title">
           <div>
-            <h2>{needsSetup ? 'Create your admin account' : 'Sign in'}</h2>
-            <p className="sub" style={{ marginTop: 6 }}>
+            <div className="auth-eyebrow">{needsSetup ? 'First run' : 'Self-hosted'}</div>
+            <h1 id="auth-title">{needsSetup ? 'Create your admin account' : 'Sign in'}</h1>
+            <p className="sub">
               {needsSetup
                 ? 'One-time setup. You only need the setup code shown when DockSentinel started.'
                 : 'Enter the administrator credentials for this instance.'}
@@ -179,7 +153,7 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
               </div>
             ) : null}
 
-            <button type="submit" className="btn primary" disabled={busy} style={{ marginTop: 4 }}>
+            <button type="submit" className="btn primary" disabled={busy}>
               {busy ? <span className="spinner" aria-hidden="true" /> : null}
               {needsSetup ? 'Create account and continue' : 'Sign in'}
             </button>
@@ -191,11 +165,14 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
               : 'Sessions are stored in an HttpOnly, SameSite=Strict cookie. Sign in again if the session expires.'}
           </div>
           <p className="tiny dim">
-            DockSentinel {needsSetup ? 'is protected by a first-run token' : 'is self-hosted and never sends telemetry'}
-            .
+            DockSentinel {needsSetup ? 'is protected by a first-run token' : 'is self-hosted and never sends telemetry'}.
           </p>
-        </div>
-      </section>
+        </section>
+
+        <p className="auth-solo-note">
+          Image scanning only — not an intrusion detection system. Self-hosted; no telemetry.
+        </p>
+      </div>
     </div>
   );
 }

@@ -90,8 +90,16 @@ export function Settings() {
   const scanner = data.scanner;
 
   return (
-    <div className="vstack" style={{ gap: 16 }}>
-      <section className="card">
+    <div className="page-stack">
+      <nav className="settings-nav" aria-label="Settings sections">
+        <a href="#settings-appearance">Appearance</a>
+        <a href="#settings-scanning">Scanning</a>
+        <a href="#settings-alerting">Alerting</a>
+        <a href="#settings-retention">Retention</a>
+        <a href="#settings-kev">Known exploited</a>
+        <a href="#settings-system">System and security</a>
+      </nav>
+      <section className="card settings-section" id="settings-appearance">
         <div className="card-header">
           <div className="vstack">
             <h2 className="section-title">Appearance</h2>
@@ -125,7 +133,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card settings-section" id="settings-scanning">
         <div className="card-header">
           <div className="vstack">
             <h2 className="section-title">Scanning</h2>
@@ -293,7 +301,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card settings-section" id="settings-alerting">
         <div className="card-header">
           <div className="vstack">
             <h2 className="section-title">Alerting</h2>
@@ -382,7 +390,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card settings-section" id="settings-retention">
         <div className="card-header">
           <div className="vstack">
             <h2 className="section-title">Retention</h2>
@@ -461,7 +469,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card settings-section" id="settings-kev">
         <div className="card-header">
           <div className="vstack">
             <h2 className="section-title">Known exploited intelligence</h2>
@@ -519,7 +527,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card settings-section" id="settings-system">
         <div className="card-header">
           <div className="vstack">
             <h2 className="section-title">System and security</h2>

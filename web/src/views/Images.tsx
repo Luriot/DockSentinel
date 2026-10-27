@@ -122,18 +122,24 @@ export function Images() {
   }
 
   return (
-    <div className="vstack" style={{ gap: 14 }}>
+    <div className="page-stack">
       <section className="card">
+        <div className="page-list-head">
+          <div>
+            <h2>Image inventory</h2>
+            <span className="sub">Deduplicated by immutable image ID; scan freshness at a glance.</span>
+          </div>
+          <span className="meta">{data ? `${data.total} images` : ''}</span>
+        </div>
         <div className="filters" role="search" aria-label="Filter images">
-          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
-            <IconSearch width={14} height={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-dim)' }} />
+          <div className="toolbar-search">
+            <IconSearch width={14} height={14} aria-hidden="true" />
             <input
               className="input"
               placeholder="Search repository, tag or image ID"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search images"
-              style={{ paddingLeft: 32, width: '100%' }}
             />
           </div>
           <select
@@ -179,9 +185,6 @@ export function Images() {
           <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh">
             <IconRefresh width={14} height={14} />
           </button>
-          <span className="tiny dim" style={{ marginLeft: 'auto' }}>
-            {data ? `${data.total} images` : ''}
-          </span>
         </div>
 
         {error && !data ? <ErrorPanel error={error} onRetry={refresh} /> : null}
@@ -490,7 +493,7 @@ function ImageDrawer({
             ) : (
               <div className="vstack" style={{ gap: 8 }}>
                 {data.findings.map((finding) => (
-                  <div key={finding.id} className="card" style={{ padding: 10, background: 'var(--panel-2)' }}>
+                  <div key={finding.id} className="drawer-finding">
                     <div className="hstack" style={{ flexWrap: 'wrap', gap: 6 }}>
                       <SeverityBadge severity={finding.severity} />
                       <span className="mono small">{finding.vulnId}</span>
