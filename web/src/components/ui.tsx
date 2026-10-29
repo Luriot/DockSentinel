@@ -192,18 +192,21 @@ export function PriorityBadge({
   tier,
   factors,
   label,
+  rank,
 }: {
   tier: string;
   factors?: string[];
   label?: string;
+  /** Position in a ranked list. Replaces the tier code, which stops discriminating when every row ties. */
+  rank?: number;
 }) {
   return (
     <span
       className={`tier tier-${tier}`}
       title={factors?.join(' · ')}
-      aria-label={`Priority ${tier}${label ? `: ${label}` : ''}`}
+      aria-label={`Priority ${tier}${rank === undefined ? '' : `, ranked ${rank}`}${label ? `: ${label}` : ''}`}
     >
-      {tier}
+      {rank === undefined ? tier : `#${rank}`}
       {label ? (
         <span className="tier-label">
           {' · '}

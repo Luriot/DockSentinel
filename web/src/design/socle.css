@@ -68,7 +68,7 @@
   --ds-row: 44px;
   --type-meta: 11px;
   --type-body: 13px;
-  --type-title: 16px;
+  --type-title: 20px;
   --type-display: 34px;
 }
 
@@ -1231,8 +1231,9 @@ table.table tbody tr:focus-visible {
   cursor: pointer;
 }
 
+/* Align the first tile's label with the panels' text edge rather than the page border. */
 .ops-stat:first-child {
-  padding-left: 0;
+  padding-left: 12px;
 }
 
 .ops-stat:last-child {
@@ -1289,10 +1290,10 @@ table.table tbody tr:focus-visible {
   margin-top: 4px;
   color: var(--text);
   font-family: var(--display);
-  font-size: var(--type-display);
+  font-size: var(--type-title);
   font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1378,6 +1379,9 @@ table.table tbody tr:focus-visible {
 
 .ops-panel-link {
   margin-left: auto;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
   padding: 0;
   border: 0;
   background: none;
@@ -1446,6 +1450,15 @@ table.ops-table tbody tr:hover td:first-child {
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+/* Mark the row the lead describes, so the answer is never unanchored. */
+table.ops-table tbody tr.is-selected {
+  background: var(--panel-2);
+}
+
+table.ops-table tbody tr.is-selected td:first-child {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 table.ops-table tbody tr:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
@@ -1482,6 +1495,28 @@ table.ops-table tbody tr:last-child td {
   text-underline-offset: 3px;
 }
 
+/* Same ring as every other control on the page: this link is the queue's only keyboard path. */
+.ops-vuln-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.ops-signal-env {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: var(--type-meta);
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ops-vuln-title {
   margin-top: 1px;
   overflow: hidden;
@@ -1512,10 +1547,6 @@ table.ops-table tbody tr:last-child td {
   white-space: nowrap;
 }
 
-.ops-sub.is-fix {
-  color: var(--ok);
-}
-
 .ops-workload {
   overflow: hidden;
   color: var(--text);
@@ -1543,51 +1574,60 @@ table.ops-table tbody tr:last-child td {
   white-space: nowrap;
 }
 
-.ops-focus {
-  padding: 13px 14px 14px;
+/* The page's answer, above the summary it used to sit behind. */
+.ops-lead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 14px 16px 16px;
 }
 
-.ops-focus-kicker {
+.ops-lead-body {
+  min-width: 0;
+}
+
+.ops-lead-kicker {
   display: flex;
   align-items: center;
   gap: 5px;
   flex-wrap: wrap;
 }
 
-.ops-focus-cve {
+.ops-lead-rank {
   margin-top: 8px;
   color: var(--text-dim);
   font-family: var(--mono);
   font-size: var(--type-meta);
 }
 
-.ops-focus h2 {
-  margin: 4px 0 0;
+.ops-lead h2 {
+  margin: 2px 0 0;
   color: var(--text);
   font-family: var(--mono);
-  font-size: var(--type-title);
+  font-size: var(--type-display);
   font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
 }
 
-.ops-focus-title {
-  margin: 5px 0 0;
+.ops-lead-title {
+  margin: 6px 0 0;
   color: var(--text-muted);
   font-size: var(--type-body);
   line-height: 1.4;
 }
 
-.ops-focus-meta {
+.ops-lead-meta {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 4px 8px;
-  margin: 10px 0 0;
-  padding-top: 9px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 12px 0 0;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
 }
 
-.ops-focus-meta dt {
+.ops-lead-meta dt {
   color: var(--text-dim);
   font-family: var(--mono);
   font-size: var(--type-meta);
@@ -1595,8 +1635,8 @@ table.ops-table tbody tr:last-child td {
   text-transform: uppercase;
 }
 
-.ops-focus-meta dd {
-  margin: 0;
+.ops-lead-meta dd {
+  margin: 2px 0 0;
   overflow-wrap: anywhere;
   color: var(--text);
   font-family: var(--mono);
@@ -1604,12 +1644,18 @@ table.ops-table tbody tr:last-child td {
   line-height: 1.45;
 }
 
-.ops-focus-meta dd.is-ok {
+.ops-lead-meta dd.is-ok {
   color: var(--ok);
 }
 
-.ops-focus-meta dd.is-dim {
+.ops-lead-meta dd.is-dim {
   color: var(--text-dim);
+}
+
+.ops-lead-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .ops-factors {
@@ -1627,13 +1673,6 @@ table.ops-table tbody tr:last-child td {
   font-family: var(--mono);
   font-size: var(--type-meta);
   line-height: 1.5;
-}
-
-.ops-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 11px;
 }
 
 .ops-coverage-row {
@@ -1874,6 +1913,9 @@ table.ops-table tbody tr:last-child td {
 
 .ops-activity-open,
 .ops-link {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
   padding: 0;
   border: 0;
   background: none;
@@ -1946,6 +1988,16 @@ table.ops-table tbody tr:last-child td {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
+}
+
+/* The loaded table panel has no padding and a 38px head; match it so nothing jumps on load. */
+.ops-loading-table {
+  padding: 0;
+}
+
+.ops-loading-head {
+  height: 38px;
+  border-bottom: 1px solid var(--border);
 }
 
 /* --- shared page scaffolding -------------------------------------------- */
@@ -3074,9 +3126,7 @@ table.vuln-table-individual th:nth-child(7) { width: 64px; }
   }
 
   .ops-side {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
+    display: block;
   }
 }
 
@@ -3299,6 +3349,25 @@ table.vuln-table-individual th:nth-child(7) { width: 64px; }
 
   .ops-risk {
     grid-template-columns: 1fr;
+  }
+
+  .ops-lead {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .ops-lead h2 {
+    font-size: var(--type-title);
+    letter-spacing: -0.02em;
+  }
+
+  .ops-lead-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ops-lead-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .ops-stat {

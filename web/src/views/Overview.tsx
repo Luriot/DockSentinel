@@ -177,8 +177,9 @@ export function Overview() {
           ))}
         </div>
         <div className="ops-loading-grid">
-          <div className="ops-loading-panel">
-            <TableSkeleton rows={6} columns={5} />
+          <div className="ops-loading-panel ops-loading-table">
+            <div className="ops-loading-head" />
+            <TableSkeleton rows={6} columns={6} />
           </div>
           <div className="ops-side">
             <div className="ops-loading-panel">
@@ -245,6 +246,7 @@ export function Overview() {
     .slice(0, 8);
   const focus = ranked[0] ?? null;
   const selected = ranked.find((finding) => finding.id === selectedId) ?? focus;
+  const selectedRank = selected ? ranked.findIndex((finding) => finding.id === selected.id) + 1 : 0;
 
   const offline = data.environments.filter((environment) => environment.status === 'offline');
   const online = data.environments.filter((environment) => environment.status === 'online').length;
@@ -392,7 +394,7 @@ export function Overview() {
           <div className="ops-banner-copy">
             <strong>Live updates are paused</strong>
             <span>
-              Last refreshed {updatedAt ? relativeTime(updatedAt) : 'before this page opened'}. {error.message}
+              This page last refreshed {updatedAt ? relativeTime(updatedAt) : 'before it opened'}. {error.message}
             </span>
           </div>
           <div className="ops-banner-actions">
@@ -422,6 +424,90 @@ export function Overview() {
             </button>
             <button type="button" className="btn small ghost" onClick={() => navigate('/notifications')}>
               <IconBell width={12} height={12} /> Set up alerts
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {selected ? (
+        <section className="card ops-panel ops-lead" aria-labelledby="lead-title">
+          <div className="ops-lead-body">
+            <div className="ops-lead-kicker">
+              <SeverityBadge severity={selected.severity} />
+              <PriorityBadge tier={selected.priority.tier} factors={selected.priority.factors} />
+              <KevBadge kev={selected.kev} />
+              <FixBadge fixedVersion={selected.fixedVersion} />
+              {selected.triageStatus === 'acknowledged' ? (
+                <span className="badge neutral">Acknowledged</span>
+              ) : null}
+            </div>
+            <p className="sr-only" role="status" aria-live="polite">
+              {selectedRank > 0
+                ? `Showing finding ${selectedRank} of ${ranked.length}: ${selected.vulnId}, ${selected.severity.toLowerCase()} severity, ${
+                    PRIORITY_LABELS[selected.priority.tier] ?? selected.priority.tier
+                  }.`
+                : ''}
+            </p>
+            <div className="ops-lead-rank">
+              Priority focus · {selectedRank > 0 ? `${selectedRank} of ${ranked.length} · ` : ''}
+              {PRIORITY_LABELS[selected.priority.tier] ?? selected.priority.tier}
+            </div>
+            <h2 id="lead-title">{selected.vulnId}</h2>
+            <p className="ops-lead-title">{selected.title ?? `${selected.pkgName} requires review`}</p>
+            <dl className="ops-lead-meta">
+              <div>
+                <dt>Package</dt>
+                <dd>
+                  {selected.pkgName} · {selected.installedVersion || 'unknown'}
+                </dd>
+              </div>
+              <div>
+                <dt>Fixed in</dt>
+                <dd className={selected.fixedVersion ? 'is-ok' : 'is-dim'}>
+                  {selected.fixedVersion ?? 'No fix listed'}
+                </dd>
+              </div>
+              <div>
+                <dt>Workload</dt>
+                <dd>{selected.containers[0]?.imageRef ?? shortImageId(selected.imageId)}</dd>
+              </div>
+              <div>
+                <dt>Exposure</dt>
+                <dd>{exposureShortLabel(selected.exposure)}</dd>
+              </div>
+              <div>
+                <dt>First seen</dt>
+                <dd>{relativeTime(selected.firstSeenAt)}</dd>
+              </div>
+            </dl>
+            <div className="ops-factors">
+              {selected.priority.factors.map((factor) => (
+                <span className="ops-factor" key={factor}>
+                  {factor}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="ops-lead-actions">
+            <button type="button" className="btn primary" onClick={() => openFinding(selected)}>
+              Review finding
+            </button>
+            {selected.triageStatus === 'acknowledged' ? null : (
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={acknowledging === selected.id}
+                onClick={() => void acknowledge(selected)}
+              >
+                {acknowledging === selected.id ? 'Acknowledging…' : 'Acknowledge'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => navigate(`/images?image=${encodeURIComponent(selected.imageId)}`)}
+            >
+              Image &amp; containers
             </button>
           </div>
         </section>
@@ -465,8 +551,9 @@ export function Overview() {
           />
         </div>
         <p className="ops-risk-note">
-          Across every severity: {data.counts.fixable} of {data.counts.total} open findings have a
-          fix, {data.changes.newFindings24h} appeared in the last 24h.
+          {data.counts.total === 0
+            ? `Nothing is open. ${data.changes.newFindings24h} appeared and ${data.changes.resolvedFindings24h} were resolved in the last 24h.`
+            : `Across every severity: ${data.counts.fixable} of ${data.counts.total} open findings have a fix, ${data.changes.newFindings24h} appeared in the last 24h.`}
         </p>
       </div>
 
@@ -482,7 +569,9 @@ export function Overview() {
                   Ranked by severity, known exploitation, fixes and exposure — not a risk score.
                 </span>
               </div>
-              <span className="ops-panel-meta">{ranked.length} highest-risk</span>
+              {ranked.length > 0 ? (
+                <span className="ops-panel-meta">{ranked.length} highest-risk</span>
+              ) : null}
               <div className="ops-panel-actions">
                 <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh overview">
                   <IconRefresh width={13} height={13} />
@@ -521,9 +610,11 @@ export function Overview() {
                     </tr>
                   </thead>
                   <tbody>
-                    {ranked.map((finding) => (
+                    {ranked.map((finding, index) => (
                       <tr
                         key={finding.id}
+                        className={selected?.id === finding.id ? 'is-selected' : undefined}
+                        aria-current={selected?.id === finding.id ? 'true' : undefined}
                         onClick={() => openFinding(finding)}
                         onFocus={() => setSelectedId(finding.id)}
                       >
@@ -533,6 +624,7 @@ export function Overview() {
                               tier={finding.priority.tier}
                               factors={finding.priority.factors}
                               label={PRIORITY_LABELS[finding.priority.tier]}
+                              rank={index + 1}
                             />
                             <SeverityBadge severity={finding.severity} />
                           </div>
@@ -571,7 +663,7 @@ export function Overview() {
                           <div className="ops-mono" title={finding.pkgName}>
                             {finding.pkgName}
                           </div>
-                          <div className={`ops-sub ${finding.fixedVersion ? 'is-fix' : ''}`}>
+                          <div className="ops-sub" title={`Fix available: ${finding.fixedVersion}`}>
                             {finding.installedVersion || 'unknown'}
                             {finding.fixedVersion ? ` → ${finding.fixedVersion}` : ' · no fix'}
                           </div>
@@ -592,6 +684,14 @@ export function Overview() {
                             <KevBadge kev={finding.kev} />
                             {finding.exposure ? (
                               <ExposureBadge state={finding.exposure} reason={finding.containers[0]?.exposureReason} />
+                            ) : null}
+                            {data.environments.length > 1 && finding.environmentNames[0] ? (
+                              <span
+                                className="ops-signal-env"
+                                title={`Environment: ${finding.environmentNames[0]}`}
+                              >
+                                {finding.environmentNames[0]}
+                              </span>
                             ) : null}
                           </div>
                         </td>
@@ -716,69 +816,6 @@ export function Overview() {
           </section>
         </div>
         <div className="ops-side">
-          {selected ? (
-            <section className="card ops-panel ops-focus" aria-labelledby="focus-title">
-              <div className="ops-focus-kicker">
-                <SeverityBadge severity={selected.severity} />
-                <PriorityBadge tier={selected.priority.tier} factors={selected.priority.factors} />
-                <KevBadge kev={selected.kev} />
-                <FixBadge fixedVersion={selected.fixedVersion} />
-              </div>
-              <div className="ops-focus-cve">
-                Priority focus · {PRIORITY_LABELS[selected.priority.tier] ?? selected.priority.tier}
-              </div>
-              <h2 id="focus-title">{selected.vulnId}</h2>
-              <p className="ops-focus-title">{selected.title ?? `${selected.pkgName} requires review`}</p>
-              <dl className="ops-focus-meta">
-                <dt>Package</dt>
-                <dd>
-                  {selected.pkgName} · {selected.installedVersion || 'unknown'}
-                </dd>
-                <dt>Fixed</dt>
-                <dd className={selected.fixedVersion ? 'is-ok' : 'is-dim'}>
-                  {selected.fixedVersion ?? 'No fix listed'}
-                </dd>
-                <dt>Workload</dt>
-                <dd>{selected.containers[0]?.imageRef ?? shortImageId(selected.imageId)}</dd>
-                <dt>Exposure</dt>
-                <dd>{exposureShortLabel(selected.exposure)}</dd>
-                <dt>First seen</dt>
-                <dd>{relativeTime(selected.firstSeenAt)}</dd>
-              </dl>
-              <div className="ops-factors">
-                {selected.priority.factors.map((factor) => (
-                  <span className="ops-factor" key={factor}>
-                    {factor}
-                  </span>
-                ))}
-              </div>
-              <div className="ops-actions">
-                <button type="button" className="btn primary" onClick={() => openFinding(selected)}>
-                  Review finding
-                </button>
-                {selected.triageStatus === 'acknowledged' ? null : (
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    disabled={acknowledging === selected.id}
-                    onClick={() => void acknowledge(selected)}
-                  >
-                    Acknowledge
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() =>
-                    navigate(`/images?image=${encodeURIComponent(selected.imageId)}`)
-                  }
-                >
-                  Image &amp; containers
-                </button>
-              </div>
-            </section>
-          ) : null}
-
           <section className="card ops-panel" aria-labelledby="coverage-title">
             <div className="ops-panel-head">
               <div className="ops-panel-heading">

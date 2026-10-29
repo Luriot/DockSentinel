@@ -58,7 +58,7 @@ test('priority queue leads into the vulnerability workflow', async ({ page }) =>
   const queue = page.locator('table').first();
   await expect(queue.locator('tbody tr')).toHaveCount(4);
   await expect(queue).toContainText('CVE-2024-1111');
-  await expect(queue.locator('tbody tr').first().locator('.tier')).toHaveText('P1 · Fix today');
+  await expect(queue.locator('tbody tr').first().locator('.tier')).toHaveText('#1 · Fix today');
 
   await queue.locator('tbody tr').first().click();
   await expect(page).toHaveURL(/\/vulnerabilities\?q=CVE-2024-1111&image=sha256/);
