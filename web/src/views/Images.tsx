@@ -124,13 +124,6 @@ export function Images() {
   return (
     <div className="page-stack">
       <section className="card">
-        <div className="page-list-head">
-          <div>
-            <h2>Image inventory</h2>
-            <span className="sub">Deduplicated by immutable image ID; scan freshness at a glance.</span>
-          </div>
-          <span className="meta">{data ? `${data.total} images` : ''}</span>
-        </div>
         <div className="filters" role="search" aria-label="Filter images">
           <div className="toolbar-search">
             <IconSearch width={14} height={14} aria-hidden="true" />
@@ -185,6 +178,7 @@ export function Images() {
           <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh">
             <IconRefresh width={14} height={14} />
           </button>
+          <span className="list-meta-count">{data ? `${data.total} images` : ''}</span>
         </div>
 
         {error && !data ? <ErrorPanel error={error} onRetry={refresh} /> : null}

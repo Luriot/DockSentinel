@@ -9,11 +9,10 @@ import {
   IconExternal,
   IconRefresh,
   IconServer,
-  IconShield,
   InlineLoading,
   useToast,
 } from '../components/ui.tsx';
-import { formatBytes, formatDate, relativeTime } from '../format.ts';
+import { formatBytes, formatDate, relativeTime, titleCase } from '../format.ts';
 
 export function Status() {
   const { data, error, loading, refresh } = useApi<SystemStatusData>('/system/status');
@@ -80,7 +79,6 @@ export function Status() {
               <h2 className="section-title">Application</h2>
               <p className="section-subtitle">DockSentinel {data.version}</p>
             </div>
-            <IconShield width={18} height={18} />
           </div>
           <div className="card-body">
             <dl className="detail-list">
@@ -113,18 +111,18 @@ export function Status() {
         </section>
 
         <section className="card" aria-label="Scanner">
-          <div className="card-header"><div><h2 className="section-title">Scanner</h2><p className="section-subtitle">Trivy and intelligence</p></div><IconShield width={18} height={18} /></div>
+          <div className="card-header"><div><h2 className="section-title">Scanner</h2><p className="section-subtitle">Trivy and intelligence</p></div></div>
           <div className="card-body">
             <dl className="detail-list">
               <dt>Trivy</dt><dd>{data.scanner.available ? data.scanner.version ?? 'available' : 'unavailable'}</dd>
               <dt>Database</dt><dd>{data.scanner.dbUpdatedAt ? relativeTime(data.scanner.dbUpdatedAt) : 'not downloaded'}</dd>
-              <dt>KEV</dt><dd>{data.kev.status === 'ok' ? `${data.kev.entryCount} entries · ${relativeTime(data.kev.syncedAt)}` : data.kev.status}</dd>
+              <dt>KEV</dt><dd>{data.kev.status === 'ok' ? `${data.kev.entryCount} ${data.kev.entryCount === 1 ? 'entry' : 'entries'} · ${relativeTime(data.kev.syncedAt)}` : data.kev.status}</dd>
             </dl>
           </div>
         </section>
 
         <section className="card" aria-label="Storage">
-          <div className="card-header"><div><h2 className="section-title">Storage</h2><p className="section-subtitle">Data directory</p></div><IconServer width={18} height={18} /></div>
+          <div className="card-header"><div><h2 className="section-title">Storage</h2><p className="section-subtitle">Data directory</p></div></div>
           <div className="card-body">
             <div className="mono small" style={{ wordBreak: 'break-all' }}>{data.dataDir}</div>
             {dataDisk ? (
@@ -146,7 +144,7 @@ export function Status() {
             {data.environments.map((environment) => (
               <tr key={environment.id}>
                 <td>{environment.name}</td>
-                <td><span className={`status-dot ${environment.status === 'online' ? 'online' : environment.status === 'offline' ? 'offline' : 'unknown'}`} aria-hidden="true" /> {environment.status}{environment.statusMessage ? <div className="cell-sub">{environment.statusMessage}</div> : null}</td>
+                <td><span className={`status-dot ${environment.status === 'online' ? 'online' : environment.status === 'offline' ? 'offline' : 'unknown'}`} aria-hidden="true" /> {titleCase(environment.status)}{environment.statusMessage ? <div className="cell-sub">{environment.statusMessage}</div> : null}</td>
                 <td>{relativeTime(environment.lastContactAt)}</td>
                 <td>{environment.scanEnabled ? 'Enabled' : 'Disabled'}</td>
               </tr>

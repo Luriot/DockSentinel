@@ -17,7 +17,7 @@ import {
   TableSkeleton,
   useToast,
 } from '../components/ui.tsx';
-import { formatDate, relativeTime } from '../format.ts';
+import { relativeTime } from '../format.ts';
 
 const SEVERITIES: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
 
@@ -204,71 +204,68 @@ export function Environments() {
       ) : null}
 
       {data && data.items.length > 0 ? (
-        <div className="grid-auto">
+        <div className="host-list">
+          <div className="host-head" aria-hidden="true">
+            <span>Host</span>
+            <span>Status</span>
+            <span>Inventory</span>
+            <span>Findings</span>
+            <span>Scan policy</span>
+            <span>Actions</span>
+          </div>
           {data.items.map((environment) => {
             const busy = busyId === environment.id;
             return (
-              <article className="card env-card" key={environment.id} aria-label={environment.name}>
-                <div className="env-card-head">
-                  <span className="vstack" style={{ gap: 3, flex: 1 }}>
-                    <h3>{environment.name}</h3>
-                    <span className="addr">
-                      {environment.kind === 'unix' ? environment.address : `${environment.kind}://${environment.address}`}
-                    </span>
+              <article className="env-card" key={environment.id} aria-label={environment.name}>
+                <div className="env-main">
+                  <h3>{environment.name}</h3>
+                  <span className="addr">
+                    {environment.kind === 'unix' ? environment.address : `${environment.kind}://${environment.address}`}
                   </span>
+                </div>
+
+                <div className="env-status">
                   <EnvStatusBadge status={environment.status} message={environment.statusMessage} />
+                  <span className="dim">Contact {relativeTime(environment.lastContactAt)}</span>
+                  <span className="dim">Discovered {relativeTime(environment.lastDiscoveryAt)}</span>
                 </div>
 
-                {environment.statusMessage ? (
-                  <div className={`note ${environment.status === 'offline' ? 'danger' : ''}`}>
-                    {environment.statusMessage}
-                  </div>
-                ) : null}
-
-                <div className="env-stats">
-                  <div className="env-stat">
-                    <strong>{environment.counts.containers}</strong>
-                    <span>Containers</span>
-                  </div>
-                  <div className="env-stat">
-                    <strong>{environment.counts.runningContainers}</strong>
-                    <span>Running</span>
-                  </div>
-                  <div className="env-stat">
-                    <strong>{environment.counts.images}</strong>
-                    <span>Images</span>
-                  </div>
-                  <div className="env-stat">
-                    <strong style={{ color: environment.counts.critical > 0 ? 'var(--critical)' : undefined }}>
-                      {environment.counts.critical}
-                    </strong>
-                    <span>Critical</span>
-                  </div>
-                  <div className="env-stat">
-                    <strong style={{ color: environment.counts.high > 0 ? 'var(--high)' : undefined }}>
-                      {environment.counts.high}
-                    </strong>
-                    <span>High</span>
+                <div className="env-inventory">
+                  <div className="env-stats">
+                    <div className="env-stat">
+                      <strong>{environment.counts.containers}</strong>
+                      <span>containers</span>
+                    </div>
+                    <div className="env-stat">
+                      <strong>{environment.counts.runningContainers}</strong>
+                      <span>running</span>
+                    </div>
+                    <div className="env-stat">
+                      <strong>{environment.counts.images}</strong>
+                      <span>images</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="tiny dim">
-                  Last contact {relativeTime(environment.lastContactAt)} · last discovery{' '}
-                  {relativeTime(environment.lastDiscoveryAt)} · created {formatDate(environment.createdAt)}
+                <div className="env-finding">
+                  {environment.counts.critical > 0 ? (
+                    <span className="badge sev-CRITICAL">{environment.counts.critical} critical</span>
+                  ) : null}
+                  {environment.counts.high > 0 ? (
+                    <span className="badge sev-HIGH">{environment.counts.high} high</span>
+                  ) : null}
+                  {environment.counts.critical + environment.counts.high === 0 ? (
+                    <span className="badge neutral">None open</span>
+                  ) : null}
                 </div>
-                <div className="tiny dim">
-                  Policy: {environment.enabled ? 'enabled' : 'disabled'} · scanning{' '}
-                  {environment.scanEnabled ? 'on' : 'off'} · quick every{' '}
-                  {environment.quickIntervalHours === 0 ? '—' : `${environment.quickIntervalHours}h`} · standard every{' '}
-                  {environment.standardIntervalHours === 0 ? '—' : `${environment.standardIntervalHours}h`} · minimum
-                  alert severity {environment.minAlertSeverity}
+
+                <div className="env-policy">
+                  {environment.enabled ? 'Enabled' : 'Disabled'} · scanning {environment.scanEnabled ? 'on' : 'off'} · quick{' '}
+                  {environment.quickIntervalHours === 0 ? '—' : `${environment.quickIntervalHours}h`} · standard{' '}
+                  {environment.standardIntervalHours === 0 ? '—' : `${environment.standardIntervalHours}h`}
+                  <br />
+                  Alerts from {environment.minAlertSeverity}
                 </div>
-                {environment.tlsSkipVerify ? (
-                  <div className="note warn">
-                    <IconAlert width={14} height={14} style={{ verticalAlign: -2 }} /> TLS certificate verification is
-                    disabled for this endpoint. Use it only on a trusted network.
-                  </div>
-                ) : null}
 
                 <div className="env-card-actions">
                   <button
@@ -286,7 +283,7 @@ export function Environments() {
                     onClick={() => void testEnvironment(environment)}
                     disabled={busy}
                   >
-                    Test connection
+                    Test
                   </button>
                   <button
                     type="button"
@@ -315,6 +312,22 @@ export function Environments() {
                     <IconTrash width={13} height={13} />
                   </button>
                 </div>
+
+                {environment.statusMessage ? (
+                  <div className="env-alert">
+                    <div className={`note ${environment.status === 'offline' ? 'danger' : ''}`}>
+                      {environment.statusMessage}
+                    </div>
+                  </div>
+                ) : null}
+                {environment.tlsSkipVerify ? (
+                  <div className="env-alert">
+                    <div className="note warn">
+                      <IconAlert width={14} height={14} style={{ verticalAlign: -2 }} /> TLS certificate verification is
+                      disabled for this endpoint. Use it only on a trusted network.
+                    </div>
+                  </div>
+                ) : null}
               </article>
             );
           })}

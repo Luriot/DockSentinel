@@ -92,13 +92,6 @@ export function Containers() {
   return (
     <div className="page-stack">
       <section className="card">
-        <div className="page-list-head">
-          <div>
-            <h2>Workloads</h2>
-            <span className="sub">Containers discovered across watched Docker hosts.</span>
-          </div>
-          <span className="meta">{data ? `${data.total} containers` : ''}</span>
-        </div>
         <div className="filters" role="search" aria-label="Filter containers">
           <div className="toolbar-search">
             <IconSearch width={14} height={14} aria-hidden="true" />
@@ -157,6 +150,7 @@ export function Containers() {
           <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh">
             <IconRefresh width={14} height={14} />
           </button>
+          <span className="list-meta-count">{data ? `${data.total} containers` : ''}</span>
         </div>
 
         {error && !data ? <ErrorPanel error={error} onRetry={refresh} /> : null}
@@ -213,7 +207,7 @@ export function Containers() {
                       <td>
                         <span className="status-line">
                           <span className={`status-dot ${container.running ? 'online' : 'unknown'}`} aria-hidden="true" />
-                          {container.present ? container.state : 'removed'}
+                          {container.present ? titleCase(container.state) : 'Removed'}
                         </span>
                       </td>
                       <td>

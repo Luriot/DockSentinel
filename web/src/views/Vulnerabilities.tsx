@@ -446,11 +446,11 @@ export function Vulnerabilities() {
         <div className="vuln-toolbar-meta">
           <span className="vuln-summary">{summary}</span>
           <span className="vuln-severity-counts" aria-label="Findings by severity">
-            <span className="badge sev-CRITICAL">C {data?.counts.CRITICAL ?? 0}</span>
-            <span className="badge sev-HIGH">H {data?.counts.HIGH ?? 0}</span>
-            <span className="badge sev-MEDIUM">M {data?.counts.MEDIUM ?? 0}</span>
-            <span className="badge sev-LOW">L {data?.counts.LOW ?? 0}</span>
-            <span className="badge sev-UNKNOWN">? {data?.counts.UNKNOWN ?? 0}</span>
+            <span className="badge sev-CRITICAL">{data?.counts.CRITICAL ?? 0} critical</span>
+            <span className="badge sev-HIGH">{data?.counts.HIGH ?? 0} high</span>
+            <span className="badge sev-MEDIUM">{data?.counts.MEDIUM ?? 0} medium</span>
+            <span className="badge sev-LOW">{data?.counts.LOW ?? 0} low</span>
+            <span className="badge sev-UNKNOWN">{data?.counts.UNKNOWN ?? 0} unknown</span>
           </span>
           <label className="vuln-page-size">
             Rows
@@ -640,7 +640,7 @@ export function Vulnerabilities() {
                 <caption className="sr-only">Vulnerability findings</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Severity / CVSS</th>
+                    <th scope="col">Severity</th>
                     <th scope="col">Vulnerability</th>
                     <th scope="col">Package / fix</th>
                     <th scope="col">Affected workload</th>

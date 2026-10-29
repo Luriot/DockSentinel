@@ -55,35 +55,22 @@ export function Content() {
 
   return (
     <div className="page-stack">
-      <section className="card">
-        <div className="card-header">
-          <div className="vstack">
-            <h2 className="section-title">Content findings</h2>
-            <span className="section-subtitle">
-              Opt-in Trivy image-content and image-config results. These are not host, daemon or runtime audits.
-            </span>
-          </div>
-          <button type="button" className="btn small ghost" onClick={refresh} disabled={loading}>
-            <IconRefresh width={13} height={13} /> Refresh
-          </button>
+      <div className="vstack" style={{ gap: 10 }}>
+        <div className="note warn">
+          <IconAlert width={14} height={14} style={{ verticalAlign: -2 }} /> Secret values are never stored, returned by
+          the API, logged or shown here. Only rule, location, category and severity are kept. Secret matches can be
+          false positives.
         </div>
-        <div className="card-body">
-          <div className="note warn">
-            <IconAlert width={14} height={14} style={{ verticalAlign: -2 }} /> Secret values are never stored,
-            returned by the API, logged or shown here. Only rule, location, category and severity are kept.
-            Secret matches can be false positives.
+        {!contentEnabled && settings.data ? (
+          <div className="note info">
+            Content scanning is disabled. Enable misconfiguration and/or secret scanning in{' '}
+            <button type="button" className="link-button" onClick={() => navigate('/settings')}>
+              Settings
+            </button>
+            , then run a content scan from an image.
           </div>
-          {!contentEnabled && settings.data ? (
-            <div className="note info" style={{ marginTop: 10 }}>
-              Content scanning is disabled. Enable misconfiguration and/or secret scanning in{' '}
-              <button type="button" className="link-button" onClick={() => navigate('/settings')}>
-                Settings
-              </button>
-              , then run a content scan from an image.
-            </div>
-          ) : null}
-        </div>
-      </section>
+        ) : null}
+      </div>
 
       <section className="card">
         <div className="filters" role="search" aria-label="Filter configuration and secret findings">
@@ -130,8 +117,11 @@ export function Content() {
             <option value="resolved">Resolved</option>
             <option value="all">All</option>
           </select>
+          <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh" disabled={loading}>
+            <IconRefresh width={13} height={13} />
+          </button>
         </div>
-        <div className="pill-row" style={{ padding: '0 16px 12px' }}>
+        <div className="list-meta">
           <span className="badge neutral">{data?.byKind.misconfiguration ?? 0} misconfigurations</span>
           <span className="badge neutral">{data?.byKind.secret ?? 0} secrets</span>
           <span className="badge neutral">{data?.total ?? 0} matching</span>

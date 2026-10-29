@@ -29,6 +29,18 @@ const PRIORITY_LABELS: Record<string, string> = {
   P4: 'Backlog',
 };
 
+/**
+ * The action word must be feasible: a finding with no listed fix cannot be "fixed today".
+ * The tier still carries the rank; this word carries what the operator can actually do.
+ */
+const NO_FIX_LONG = 'No fix — accept and watch';
+
+function actionWord(finding: FindingView, compact = false): string {
+  const label = PRIORITY_LABELS[finding.priority.tier] ?? finding.priority.tier;
+  if (finding.fixedVersion) return label;
+  return compact ? 'No fix — watch' : NO_FIX_LONG;
+}
+
 function RiskStat({
   label,
   value,
@@ -115,6 +127,10 @@ function workloadDetail(finding: FindingView): string {
     finding.containerCount > 0
       ? `${finding.containerCount} container${finding.containerCount === 1 ? '' : 's'}${
           finding.runningContainerCount > 0 ? `, ${finding.runningContainerCount} running` : ''
+        }${
+          finding.containerCount > finding.runningContainerCount
+            ? `, ${finding.containerCount - finding.runningContainerCount} stopped`
+            : ''
         }`
       : 'Image only';
   return finding.environmentNames.length > 0
@@ -138,8 +154,13 @@ function scanOutcome(scan: OverviewData['scans']['recent'][number]): {
     };
   }
   if (scan.status === 'success') {
+    const parts = [
+      scan.critical > 0 ? `${scan.critical} critical` : null,
+      scan.high > 0 ? `${scan.high} high` : null,
+      scan.medium > 0 ? `${scan.medium} medium` : null,
+    ].filter(Boolean);
     return {
-      text: scan.total > 0 ? `C${scan.critical} H${scan.high} M${scan.medium}` : 'No findings',
+      text: parts.length > 0 ? parts.join(' · ') : 'No findings',
       error: false,
       title:
         scan.total > 0
@@ -430,11 +451,16 @@ export function Overview() {
       ) : null}
 
       {selected ? (
-        <section className="card ops-panel ops-lead" aria-labelledby="lead-title">
+        <section className="ops-lead" aria-labelledby="lead-title">
           <div className="ops-lead-body">
             <div className="ops-lead-kicker">
               <SeverityBadge severity={selected.severity} />
-              <PriorityBadge tier={selected.priority.tier} factors={selected.priority.factors} />
+              <PriorityBadge
+                tier={selected.priority.tier}
+                factors={selected.priority.factors}
+                label={actionWord(selected)}
+                rank={selectedRank > 0 ? selectedRank : undefined}
+              />
               <KevBadge kev={selected.kev} />
               <FixBadge fixedVersion={selected.fixedVersion} />
               {selected.triageStatus === 'acknowledged' ? (
@@ -443,15 +469,9 @@ export function Overview() {
             </div>
             <p className="sr-only" role="status" aria-live="polite">
               {selectedRank > 0
-                ? `Showing finding ${selectedRank} of ${ranked.length}: ${selected.vulnId}, ${selected.severity.toLowerCase()} severity, ${
-                    PRIORITY_LABELS[selected.priority.tier] ?? selected.priority.tier
-                  }.`
+                ? `Showing finding ${selectedRank} of ${ranked.length}: ${selected.vulnId}, ${selected.severity.toLowerCase()} severity, ${actionWord(selected)}.`
                 : ''}
             </p>
-            <div className="ops-lead-rank">
-              Priority focus · {selectedRank > 0 ? `${selectedRank} of ${ranked.length} · ` : ''}
-              {PRIORITY_LABELS[selected.priority.tier] ?? selected.priority.tier}
-            </div>
             <h2 id="lead-title">{selected.vulnId}</h2>
             <p className="ops-lead-title">{selected.title ?? `${selected.pkgName} requires review`}</p>
             <dl className="ops-lead-meta">
@@ -566,7 +586,7 @@ export function Overview() {
                   Action queue
                 </h2>
                 <span className="ops-panel-sub">
-                  Ranked by severity, known exploitation, fixes and exposure — not a risk score.
+                  Critical and high only · ranked by severity, known exploitation, fix availability and exposure.
                 </span>
               </div>
               {ranked.length > 0 ? (
@@ -623,7 +643,7 @@ export function Overview() {
                             <PriorityBadge
                               tier={finding.priority.tier}
                               factors={finding.priority.factors}
-                              label={PRIORITY_LABELS[finding.priority.tier]}
+                              label={actionWord(finding, true)}
                               rank={index + 1}
                             />
                             <SeverityBadge severity={finding.severity} />
@@ -704,7 +724,7 @@ export function Overview() {
             )}
           </section>
 
-          <section className="card ops-panel ops-activity" aria-labelledby="recent-activity-title">
+          <section className="card ops-panel" aria-labelledby="recent-activity-title">
             <div className="ops-panel-head">
               <div className="ops-panel-heading">
                 <h2 className="ops-panel-title" id="recent-activity-title">

@@ -1,19 +1,12 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { api, type OverviewData } from '../api.ts';
 import { navigate, useApi, useRoute } from '../hooks.ts';
+import { relativeTime } from '../format.ts';
 import {
-  IconActivity,
-  IconBell,
-  IconBox,
-  IconDashboard,
-  IconLayers,
-  IconLogout,
-  IconBug,
-  IconServer,
-  IconSettings,
-  IconShield,
-  IconKey,
   IconAlert,
+  IconKey,
+  IconLogout,
+  IconShield,
   useToast,
   Modal,
   Field,
@@ -33,7 +26,6 @@ import { Settings } from '../views/Settings.tsx';
 interface RouteDefinition {
   title: string;
   subtitle: string;
-  code: string;
   component: ComponentType;
 }
 
@@ -41,61 +33,51 @@ const ROUTES: Record<string, RouteDefinition> = {
   '/': {
     title: 'Overview',
     subtitle: 'Urgent vulnerabilities across your Docker workloads',
-    code: '01',
     component: Overview,
   },
   '/vulnerabilities': {
     title: 'Vulnerabilities',
     subtitle: 'Findings with fixes, exploitation signals and affected workloads',
-    code: '02',
     component: Vulnerabilities,
   },
   '/content': {
     title: 'Configuration & secrets',
     subtitle: 'Opt-in image content and image config findings',
-    code: '03',
     component: Content,
   },
   '/environments': {
     title: 'Docker hosts',
     subtitle: 'The Docker engines DockSentinel watches',
-    code: '04',
     component: Environments,
   },
   '/containers': {
     title: 'Containers',
     subtitle: 'Workloads, their images and exposure context',
-    code: '05',
     component: Containers,
   },
   '/images': {
     title: 'Images',
     subtitle: 'Deduplicated image inventory and scan freshness',
-    code: '06',
     component: Images,
   },
   '/scans': {
     title: 'Scans',
     subtitle: 'Running, scheduled, successful and failed scans',
-    code: '07',
     component: Scans,
   },
   '/notifications': {
     title: 'Alerts',
     subtitle: 'ntfy delivery, alert policy and history',
-    code: '08',
     component: Notifications,
   },
   '/status': {
     title: 'System status',
     subtitle: 'Health, storage, backups and updates',
-    code: '09',
     component: Status,
   },
   '/settings': {
     title: 'Settings',
     subtitle: 'Scanning, retention, intelligence and security',
-    code: '10',
     component: Settings,
   },
 };
@@ -104,31 +86,31 @@ const NAV_GROUPS = [
   {
     label: 'Monitor',
     items: [
-      { path: '/', label: 'Overview', icon: IconDashboard },
-      { path: '/vulnerabilities', label: 'Vulnerabilities', icon: IconBug },
-      { path: '/content', label: 'Config & secrets', icon: IconKey },
+      { path: '/', label: 'Overview' },
+      { path: '/vulnerabilities', label: 'Vulnerabilities' },
+      { path: '/content', label: 'Config & secrets' },
     ],
   },
   {
     label: 'Inventory',
     items: [
-      { path: '/environments', label: 'Docker hosts', icon: IconServer },
-      { path: '/containers', label: 'Containers', icon: IconBox },
-      { path: '/images', label: 'Images', icon: IconLayers },
+      { path: '/environments', label: 'Docker hosts' },
+      { path: '/containers', label: 'Containers' },
+      { path: '/images', label: 'Images' },
     ],
   },
   {
     label: 'Operations',
     items: [
-      { path: '/scans', label: 'Scans', icon: IconActivity },
-      { path: '/notifications', label: 'Alerts', icon: IconBell },
+      { path: '/scans', label: 'Scans' },
+      { path: '/notifications', label: 'Alerts' },
     ],
   },
   {
     label: 'System',
     items: [
-      { path: '/status', label: 'System status', icon: IconShield },
-      { path: '/settings', label: 'Settings', icon: IconSettings },
+      { path: '/status', label: 'System status' },
+      { path: '/settings', label: 'Settings' },
     ],
   },
 ];
@@ -165,7 +147,6 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
   const definition = ROUTES[route.path] ?? {
     title: 'Not found',
     subtitle: 'This page does not exist',
-    code: '--',
     component: NotFound,
   };
   const welcome = route.path === '/' && overview.data !== null && (overview.data.environments.length === 0);
@@ -175,6 +156,9 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
   const runningScans = overview.data?.scans.running ?? 0;
   const queuedScans = overview.data?.scans.queued ?? 0;
   const environments = overview.data?.environments ?? [];
+  const lastSuccessfulAt = overview.data?.scans.lastSuccessfulAt ?? null;
+  const lastSuccessAge = lastSuccessfulAt ? Date.parse(lastSuccessfulAt) : Number.NaN;
+  const dataIsOld = overview.data !== null && (!Number.isFinite(lastSuccessAge) || Date.now() - lastSuccessAge > 24 * 3_600_000);
   const formatCount = (value: number): string => (value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(value));
 
   async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -200,7 +184,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
             }}
           >
             <span className="brand-mark">
-              <IconShield width={19} height={19} />
+              <IconShield width={16} height={16} />
             </span>
             <span className="brand-text">
               <span className="brand-name">DockSentinel</span>
@@ -213,9 +197,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
               <div key={group.label} className="nav-group" role="group" aria-label={group.label}>
                 <span className="nav-label">{group.label}</span>
                 {group.items.map((item) => {
-                  const Icon = item.icon;
                   const active = route.path === item.path;
-                  const code = ROUTES[item.path]?.code ?? '--';
                   const badge =
                     item.path === '/vulnerabilities' && critical + high > 0
                       ? formatCount(critical + high)
@@ -237,11 +219,7 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                         navigate(item.path);
                       }}
                     >
-                      <Icon width={15} height={15} />
-                      <span className="nav-index" aria-hidden="true">
-                        {code}
-                      </span>
-                      <span>{item.label}</span>
+                      <span className="nav-title">{item.label}</span>
                       {badge ? (
                         <span className="nav-count" title={badgeTitle} aria-label={badgeTitle}>
                           {badge}
@@ -275,16 +253,13 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                 : 'Checking scanner…'}
             </div>
             <span>DockSentinel {health.data?.version ?? ''}</span>
-            <span className="dim">Image scanning only — not runtime IDS</span>
+            <span>Image scanning only — not runtime IDS</span>
           </div>
         </aside>
 
         <div className="main">
           <header className="topbar">
             <div className="page-heading">
-              <span className="page-code" aria-hidden="true">
-                WATCH / {definition.code}
-              </span>
               <h1>{welcome ? 'Welcome' : definition.title}</h1>
               <p>{welcome ? 'A few steps to start watching your Docker images' : definition.subtitle}</p>
             </div>
@@ -306,14 +281,20 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                       {environment.name}
                     </span>
                   ))}
-                  {environments.length > 3 ? (
-                    <span className="env-chip">+{environments.length - 3}</span>
-                  ) : null}
+                  {environments.length > 3 ? <span className="env-chip">+{environments.length - 3}</span> : null}
                 </div>
               ) : null}
               {runningScans > 0 ? (
                 <span className="env-chip">
                   <span className="spinner" aria-hidden="true" /> {runningScans} scanning
+                </span>
+              ) : null}
+              {overview.data && environments.length > 0 ? (
+                <span
+                  className={`watch-age${dataIsOld ? ' is-attention' : ''}`}
+                  title="Age of the vulnerability data on screen: the last successful scan"
+                >
+                  {lastSuccessfulAt ? `Scan data ${relativeTime(lastSuccessfulAt)}` : 'Never scanned'}
                 </span>
               ) : null}
               <div className="relative" ref={menuRef}>

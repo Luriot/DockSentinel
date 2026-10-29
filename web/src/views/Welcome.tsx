@@ -122,11 +122,10 @@ export function Welcome({ onConnected }: { onConnected: () => void }) {
     const findingCount = overview.data?.counts.total ?? 0;
     return (
       <div className="welcome">
-        <section className="card welcome-hero">
+        <section className="welcome-hero">
           <span className="welcome-check" aria-hidden="true">
             <IconCheck width={28} height={28} />
           </span>
-          <p className="eyebrow">CONNECTED</p>
           <h2>Docker is connected</h2>
           <p>
             Found <strong>{result.discovery?.containers ?? 0} containers</strong> and{' '}
@@ -274,8 +273,7 @@ export function Welcome({ onConnected }: { onConnected: () => void }) {
 
   return (
     <div className="welcome">
-      <section className="card welcome-hero">
-        <p className="eyebrow">FIRST RUN</p>
+      <section className="welcome-hero">
         <h2>Let&apos;s connect Docker</h2>
         <p>
           DockSentinel watches the containers and images on a Docker host. It only reads Docker metadata and scans
@@ -309,29 +307,29 @@ export function Welcome({ onConnected }: { onConnected: () => void }) {
         </p>
       </section>
 
-      <div className="welcome-steps">
-        <article className="card welcome-step">
-          <span className="welcome-step-icon">
-            <IconServer width={18} height={18} />
+      <ol className="welcome-steps">
+        <li className="welcome-step">
+          <span className="welcome-step-index" aria-hidden="true">
+            01
           </span>
-          <h3>1. Connect Docker</h3>
+          <h3>Connect Docker</h3>
           <p>Use this computer for one click, or add a remote host with its address and certificates.</p>
-        </article>
-        <article className="card welcome-step">
-          <span className="welcome-step-icon">
-            <IconLayers width={18} height={18} />
+        </li>
+        <li className="welcome-step">
+          <span className="welcome-step-index" aria-hidden="true">
+            02
           </span>
-          <h3>2. Let it scan</h3>
+          <h3>Let it scan</h3>
           <p>Images are scanned automatically with Trivy. You get a clear history and no false “clean” failures.</p>
-        </article>
-        <article className="card welcome-step">
-          <span className="welcome-step-icon">
-            <IconBell width={18} height={18} />
+        </li>
+        <li className="welcome-step">
+          <span className="welcome-step-index" aria-hidden="true">
+            03
           </span>
-          <h3>3. Get alerts</h3>
+          <h3>Get alerts</h3>
           <p>Add ntfy when you want a phone or desktop notification for serious new findings. It is optional.</p>
-        </article>
-      </div>
+        </li>
+      </ol>
 
       <section className="card welcome-security">
         <IconShield width={18} height={18} />

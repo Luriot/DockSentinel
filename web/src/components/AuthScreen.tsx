@@ -51,7 +51,6 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
 
         <section className="auth-card" aria-labelledby="auth-title">
           <div>
-            <div className="auth-eyebrow">{needsSetup ? 'First run' : 'Self-hosted'}</div>
             <h1 id="auth-title">{needsSetup ? 'Create your admin account' : 'Sign in'}</h1>
             <p className="sub">
               {needsSetup

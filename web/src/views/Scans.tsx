@@ -107,13 +107,6 @@ export function Scans() {
       </div>
 
       <section className="card">
-        <div className="page-list-head">
-          <div>
-            <h2>Scan history</h2>
-            <span className="sub">Running, scheduled, successful and failed scans. Auto-refreshes every 5 seconds.</span>
-          </div>
-          <span className="meta">{data ? `${data.total} scans` : ''}</span>
-        </div>
         <div className="filters">
           <select
             className="select"
@@ -144,6 +137,7 @@ export function Scans() {
           <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh">
             <IconRefresh width={14} height={14} />
           </button>
+          <span className="list-meta-count">{data ? `${data.total} scans · auto-refresh 5s` : ''}</span>
         </div>
 
         {error && !data ? <ErrorPanel error={error} onRetry={refresh} /> : null}

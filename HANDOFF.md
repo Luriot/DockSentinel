@@ -134,12 +134,20 @@ initial implementation, so the image and live Docker integration were verified a
 
 ### Interface
 
-- Dark, dense technical UI with nine views: Overview, Environments, Containers, Images, Vulnerabilities,
-  Config & secrets, Scan activity, Notifications, Settings; plus login/setup and detail drawers.
-- Severity is conveyed with text + shape, not colour alone; priority tiers show their factors; exposure is
-  labelled carefully; failures, stale results and clean results are visually distinct.
-- Search/filter/sort, pagination, loading/empty/error states, responsive layout (verified at 390 px),
-  keyboard focus, skip link, dialog focus management, `aria-current`, captions and labels.
+- The frontend is a single design system described in `DESIGN.md`: a **watch ledger** of ruled sections,
+  hairline tables and a monochrome chrome where colour is reserved for severity, health and attention.
+  `web/src/design/socle.css` is the only stylesheet; the former `styles.css`/`theme.css` layers were
+  removed rather than overridden again.
+- Ten views: Overview, Vulnerabilities, Config & secrets, Docker hosts, Containers, Images, Scans, Alerts,
+  System status, Settings; plus login/setup, first-run onboarding and detail drawers.
+- Overview answers environment health, data currency, the highest-priority finding, the ranked action
+  queue and coverage/trust without repeating summary tiles on the detail pages.
+- Type is a four-step scale (12/14/18/28) in self-hosted Saira and Chivo Mono; 14px body text replaced the
+  former 8-11px micro-labels. Severity is conveyed with a marker and a word, never colour alone; priority
+  tiers show rank and the feasible action word (a finding with no fix is never labelled "Fix today").
+- Search/filter/sort, pagination, loading/empty/error/stale states, responsive layout (verified at 390 px
+  and 1280/1920 px in both themes), keyboard focus, skip link, dialog focus management, `aria-current`,
+  captions and labels.
 - No misleading charts or unsupported security scores.
 
 ## Supported scanners and Docker integrations
