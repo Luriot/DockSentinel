@@ -411,6 +411,7 @@ export interface OverviewData {
     success24h: number;
     failed24h: number;
     recent: ScanRecord[];
+    /** Latest successful vulnerability scan; content scans are excluded. */
     lastSuccessfulAt: string | null;
   };
   alerts: { pending: number; sent24h: number; failed24h: number };

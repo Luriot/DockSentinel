@@ -48,6 +48,7 @@ test('sign-in validates credentials and loads the security overview', async ({ p
   await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
   await expect(page.getByText('Critical open').first()).toBeVisible();
   await expect(page.locator('.ops-stat-value').first()).toHaveText('2');
+  await expect(page.locator('.watch-age')).toContainText('Scan data');
   await page.screenshot({ path: join(SCREENS, '01-overview.png'), fullPage: true });
 });
 
@@ -59,6 +60,8 @@ test('priority queue leads into the vulnerability workflow', async ({ page }) =>
   await expect(queue.locator('tbody tr')).toHaveCount(4);
   await expect(queue).toContainText('CVE-2024-1111');
   await expect(queue.locator('tbody tr').first().locator('.tier')).toHaveText('#1 · Fix today');
+  // CVE-2024-2222 has no fixed version: the action word must not promise a fix.
+  await expect(queue.locator('tbody tr').nth(1).locator('.tier')).toHaveText('#2 · No fix — watch');
 
   await queue.locator('tbody tr').first().click();
   await expect(page).toHaveURL(/\/vulnerabilities\?q=CVE-2024-1111&image=sha256/);
@@ -100,6 +103,28 @@ test('severity and known-exploited filters narrow findings', async ({ page }) =>
 
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await expect(page.locator('table tbody tr')).toHaveCount(6);
+});
+
+test('a low-only successful scan is never reported as clean', async ({ page }) => {
+  await login(page);
+  await page.route('**/api/overview', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const scan = body.scans.recent.find((entry: { status: string }) => entry.status === 'success');
+    Object.assign(scan, { critical: 0, high: 0, medium: 0, low: 1, unknown: 0, total: 1 });
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto(server.url);
+  await expect(page.locator('.ops-scan-row').filter({ hasText: '1 low' })).toBeVisible();
+});
+
+test('advanced filters stay inside the viewport', async ({ page }) => {
+  await login(page);
+  await page.goto(`${server.url}/vulnerabilities`);
+  await page.getByText('More filters').click();
+  await expect(page.getByLabel('Filter by state')).toBeVisible();
+  const overflow = await page.evaluate('document.documentElement.scrollWidth - window.innerWidth');
+  expect(overflow).toBeLessThanOrEqual(1);
 });
 
 test('images are deduplicated and can queue a scan', async ({ page }) => {
@@ -220,6 +245,8 @@ test('system status shows storage, hosts and creates a backup', async ({ page })
   await expect(page.getByRole('heading', { name: 'System status', level: 1 })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Docker hosts' })).toBeVisible();
+  await expect(page.locator('table').filter({ hasText: 'Unraid' })).toContainText('Online');
+  await expect(page.locator('table').filter({ hasText: 'Remote Office' })).toContainText('Offline');
   await page.getByRole('button', { name: 'Create backup' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Backup created' })).toBeVisible();
   await expect(page.locator('table').filter({ hasText: 'docksentinel-' }).first()).toBeVisible();

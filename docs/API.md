@@ -29,6 +29,10 @@ administrative endpoints. All JSON responses use camelCase. Errors have the shap
 | Method | Path | Notes |
 | --- | --- | --- |
 | `GET` | `/api/overview` | Dashboard aggregates, top findings, recent activity, environments |
+
+`/api/overview`'s `scans.lastSuccessfulAt`, `scans.success24h`, `scans.failed24h` and `scans.recent`
+describe **vulnerability scans only**; successful content scans never make vulnerability data look
+fresh.
 | `GET` | `/api/environments` | Docker host list with status and counts |
 | `GET` | `/api/environments/detect` | Probes local Docker Desktop/named-pipe/Unix socket candidates for the welcome screen |
 | `GET` | `/api/images` | Filters: `q`, `envId`, `minSeverity=critical\|high`, `neverScanned`, `stale`, `page`, `pageSize` |

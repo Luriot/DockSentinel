@@ -640,7 +640,7 @@ export function Vulnerabilities() {
                 <caption className="sr-only">Vulnerability findings</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Severity</th>
+                    <th scope="col">Severity / CVSS</th>
                     <th scope="col">Vulnerability</th>
                     <th scope="col">Package / fix</th>
                     <th scope="col">Affected workload</th>

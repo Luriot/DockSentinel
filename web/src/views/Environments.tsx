@@ -17,7 +17,7 @@ import {
   TableSkeleton,
   useToast,
 } from '../components/ui.tsx';
-import { relativeTime } from '../format.ts';
+import { formatDate, relativeTime } from '../format.ts';
 
 const SEVERITIES: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
 
@@ -209,7 +209,7 @@ export function Environments() {
             <span>Host</span>
             <span>Status</span>
             <span>Inventory</span>
-            <span>Findings</span>
+            <span>Critical / high</span>
             <span>Scan policy</span>
             <span>Actions</span>
           </div>
@@ -228,6 +228,9 @@ export function Environments() {
                   <EnvStatusBadge status={environment.status} message={environment.statusMessage} />
                   <span className="dim">Contact {relativeTime(environment.lastContactAt)}</span>
                   <span className="dim">Discovered {relativeTime(environment.lastDiscoveryAt)}</span>
+                  <span className="dim" title={`Added ${formatDate(environment.createdAt)}`}>
+                    Added {relativeTime(environment.createdAt)}
+                  </span>
                 </div>
 
                 <div className="env-inventory">
@@ -247,7 +250,10 @@ export function Environments() {
                   </div>
                 </div>
 
-                <div className="env-finding">
+                <div
+                  className="env-finding"
+                  title="Open CRITICAL and HIGH findings recorded for this host. MEDIUM and LOW are not counted in this column, and no count is a clean claim until a scan has succeeded."
+                >
                   {environment.counts.critical > 0 ? (
                     <span className="badge sev-CRITICAL">{environment.counts.critical} critical</span>
                   ) : null}
@@ -255,7 +261,7 @@ export function Environments() {
                     <span className="badge sev-HIGH">{environment.counts.high} high</span>
                   ) : null}
                   {environment.counts.critical + environment.counts.high === 0 ? (
-                    <span className="badge neutral">None open</span>
+                    <span className="badge neutral">None recorded</span>
                   ) : null}
                 </div>
 

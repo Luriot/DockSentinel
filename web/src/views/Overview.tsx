@@ -158,14 +158,28 @@ function scanOutcome(scan: OverviewData['scans']['recent'][number]): {
       scan.critical > 0 ? `${scan.critical} critical` : null,
       scan.high > 0 ? `${scan.high} high` : null,
       scan.medium > 0 ? `${scan.medium} medium` : null,
-    ].filter(Boolean);
+    ].filter((part): part is string => part !== null);
+    // A scan with only low/unknown findings is not clean: never reduce it to "No findings".
+    if (parts.length === 0) {
+      if (scan.low > 0) parts.push(`${scan.low} low`);
+      if (scan.unknown > 0) parts.push(`${scan.unknown} unknown`);
+    }
+    const titleParts = [
+      scan.critical > 0 ? `${scan.critical} critical` : null,
+      scan.high > 0 ? `${scan.high} high` : null,
+      scan.medium > 0 ? `${scan.medium} medium` : null,
+      scan.low > 0 ? `${scan.low} low` : null,
+      scan.unknown > 0 ? `${scan.unknown} unknown` : null,
+    ].filter((part): part is string => part !== null);
     return {
-      text: parts.length > 0 ? parts.join(' · ') : 'No findings',
+      text:
+        parts.length > 0
+          ? parts.join(' · ')
+          : scan.total > 0
+            ? `${scan.total} finding${scan.total === 1 ? '' : 's'}`
+            : 'No findings',
       error: false,
-      title:
-        scan.total > 0
-          ? `${scan.critical} critical · ${scan.high} high · ${scan.medium} medium`
-          : 'No findings',
+      title: titleParts.length > 0 ? titleParts.join(' · ') : 'No findings',
     };
   }
   if (scan.status === 'cancelled') return { text: 'Cancelled', error: false, title: 'Scan cancelled' };

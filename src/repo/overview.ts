@@ -170,8 +170,9 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
     }));
 
   const scanCounts = scanStatusCounts(db, since24h);
+  // Content scans are separate and must never make vulnerability data look fresh.
   const lastSuccessful = db.get<{ finished_at: string | null }>(
-    `SELECT MAX(finished_at) AS finished_at FROM scans WHERE status = 'success'`,
+    `SELECT MAX(finished_at) AS finished_at FROM scans WHERE status = 'success' AND kind = 'vulnerability'`,
   )?.finished_at ?? null;
   const alertCounts = alertStatusCounts(db, since24h);
 

@@ -143,7 +143,6 @@ export function Containers() {
               type="checkbox"
               checked={includeRemoved}
               onChange={(event) => setIncludeRemoved(event.target.checked)}
-              style={{ accentColor: 'var(--accent)' }}
             />
             Include removed
           </label>
