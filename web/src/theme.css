@@ -1,4 +1,6 @@
-/* DockSentinel — harbor console: clear web-app hierarchy, calm surfaces, cyan action. */
+/* DockSentinel shell: layout and component styling. Tokens live in design/socle.css, which loads
+   after this file and wins; values here are the pre-migration palette kept only for anything socle
+   does not restate. */
 
 html {
   color-scheme: dark;

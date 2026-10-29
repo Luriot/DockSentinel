@@ -1,5 +1,5 @@
-import { useState, type KeyboardEvent } from 'react';
-import { type FindingView, type OverviewData } from '../api.ts';
+import { useEffect, useState } from 'react';
+import { api, type FindingView, type OverviewData } from '../api.ts';
 import { useApi, navigate } from '../hooks.ts';
 import {
   EmptyState,
@@ -18,6 +18,7 @@ import {
   PriorityBadge,
   SeverityBadge,
   TableSkeleton,
+  useToast,
 } from '../components/ui.tsx';
 import { exposureShortLabel, relativeTime, shortImageId } from '../format.ts';
 
@@ -36,8 +37,8 @@ function RiskStat({
   onClick,
 }: {
   label: string;
-  value: number;
-  meta: string;
+  value: number | string;
+  meta?: string;
   tone: 'critical' | 'high' | 'kev' | 'workloads';
   onClick: () => void;
 }) {
@@ -48,7 +49,7 @@ function RiskStat({
         {label}
       </span>
       <span className="ops-stat-value">{value}</span>
-      <span className="ops-stat-meta">{meta}</span>
+      {meta ? <span className="ops-stat-meta">{meta}</span> : null}
     </button>
   );
 }
@@ -62,7 +63,7 @@ function CoverageRow({
 }: {
   tone: 'online' | 'pending' | 'offline' | 'unknown' | 'running';
   label: string;
-  value: string;
+  value?: string;
   detail?: string;
   onClick?: () => void;
 }) {
@@ -70,7 +71,7 @@ function CoverageRow({
     <>
       <span className={`status-dot ${tone}`} aria-hidden="true" />
       <span className="ops-coverage-label">{label}</span>
-      <span className="ops-coverage-value">{value}</span>
+      {value ? <span className="ops-coverage-value">{value}</span> : null}
       {detail ? <span className="ops-coverage-detail">{detail}</span> : null}
     </>
   );
@@ -99,13 +100,26 @@ function eventDescription(kind: string): string {
 }
 
 function workloadSummary(finding: FindingView): string {
-  const containers =
+  if (finding.containers.length === 0) {
+    return finding.containerCount > 0
+      ? `${finding.containerCount} container${finding.containerCount === 1 ? '' : 's'}`
+      : 'Image only';
+  }
+  const names = finding.containers.slice(0, 2).map((container) => container.name).join(', ');
+  const extra = finding.containers.length > 2 ? ` +${finding.containers.length - 2}` : '';
+  return `${names}${extra}`;
+}
+
+function workloadDetail(finding: FindingView): string {
+  const counts =
     finding.containerCount > 0
       ? `${finding.containerCount} container${finding.containerCount === 1 ? '' : 's'}${
-          finding.runningContainerCount > 0 ? ` · ${finding.runningContainerCount} running` : ''
+          finding.runningContainerCount > 0 ? `, ${finding.runningContainerCount} running` : ''
         }`
       : 'Image only';
-  return `${containers}${finding.environmentNames.length > 0 ? ` · ${finding.environmentNames.join(', ')}` : ''}`;
+  return finding.environmentNames.length > 0
+    ? `${counts} · ${finding.environmentNames.join(', ')}`
+    : counts;
 }
 
 function scanOutcome(scan: OverviewData['scans']['recent'][number]): {
@@ -114,7 +128,9 @@ function scanOutcome(scan: OverviewData['scans']['recent'][number]): {
   title: string;
 } {
   if (scan.status === 'failed') {
-    const text = scan.errorCode ? scan.errorCode.replace(/_/g, ' ') : 'Scan failed';
+    const text = scan.errorCode
+      ? scan.errorCode.replace(/_/g, ' ').replace(/^./, (character) => character.toUpperCase())
+      : 'Scan failed';
     return {
       text,
       error: true,
@@ -140,10 +156,17 @@ function scanOutcome(scan: OverviewData['scans']['recent'][number]): {
 export function Overview() {
   const { data, error, loading, refresh } = useApi<OverviewData>('/overview', { intervalMs: 15_000 });
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [acknowledging, setAcknowledging] = useState<number | null>(null);
+  const toast = useToast();
+
+  useEffect(() => {
+    if (data && !error) setUpdatedAt(new Date().toISOString());
+  }, [data, error]);
 
   if (loading && !data) {
     return (
-      <div className="ops-page ops-loading" role="status" aria-live="polite" aria-label="Loading overview">
+      <div className="ops-page ops-loading" aria-busy="true" aria-label="Loading overview">
         <div className="ops-loading-stats">
           {[0, 1, 2, 3].map((index) => (
             <div key={index} className="ops-loading-stat">
@@ -213,34 +236,68 @@ export function Overview() {
     );
   }
 
-  const waitingForFirstScan = data.scans.success24h === 0;
+  const neverScanned = data.scans.lastSuccessfulAt === null;
   const scansInFlight = data.scans.queued + data.scans.running;
-  const focus = data.findings.top[0] ?? null;
-  const selected = data.findings.top.find((finding) => finding.id === selectedId) ?? focus;
+  // The API orders by severity; the tier also weighs exploitation, fixes, running state and
+  // exposure, so rank here and let the row position agree with the badge.
+  const ranked = [...data.findings.top]
+    .sort((a, b) => b.priority.score - a.priority.score || a.priority.tier.localeCompare(b.priority.tier))
+    .slice(0, 8);
+  const focus = ranked[0] ?? null;
+  const selected = ranked.find((finding) => finding.id === selectedId) ?? focus;
 
   const offline = data.environments.filter((environment) => environment.status === 'offline');
   const online = data.environments.filter((environment) => environment.status === 'online').length;
-  const attention: { label: string; detail: string; path: string; tone: 'danger' | 'warn' | 'neutral' }[] = [];
+  const unreachable = data.environments.filter(
+    (environment) => environment.enabled && environment.status === 'unknown',
+  );
+  const attention: {
+    label: string;
+    detail: string;
+    path: string;
+    tone: 'danger' | 'warn' | 'neutral';
+    value?: string;
+  }[] = [];
   if (offline.length > 0) {
     attention.push({
       label: 'Unavailable environments',
       detail: offline.map((environment) => environment.name).join(', '),
+      value: String(offline.length),
       path: '/environments',
       tone: 'danger',
+    });
+  }
+  if (unreachable.length > 0) {
+    attention.push({
+      label: 'Environments never contacted',
+      detail: `${unreachable.map((environment) => environment.name).join(', ')}. Unknown is not healthy — no inventory was read from them.`,
+      value: String(unreachable.length),
+      path: '/environments',
+      tone: 'neutral',
     });
   }
   if (data.scans.failed24h > 0) {
     attention.push({
       label: 'Scans failed in the last 24h',
-      detail: `${data.scans.failed24h} failed. Previous findings stay in place; no clean result is assumed.`,
+      detail: 'Previous findings stay in place; no clean result is assumed.',
+      value: String(data.scans.failed24h),
       path: '/scans?status=failed',
       tone: 'danger',
+    });
+  }
+  if (!neverScanned && data.scans.success24h === 0) {
+    attention.push({
+      label: 'No successful scan in 24h',
+      detail: `Last success ${relativeTime(data.scans.lastSuccessfulAt)}. The findings shown are kept, not freshly confirmed.`,
+      path: '/scans',
+      tone: 'warn',
     });
   }
   if (data.workloads.staleImages > 0) {
     attention.push({
       label: 'Stale scan results',
-      detail: `${data.workloads.staleImages} in-use images were not successfully scanned within ${data.freshnessHours}h.`,
+      detail: `In-use images not successfully scanned within ${data.freshnessHours}h.`,
+      value: String(data.workloads.staleImages),
       path: '/images?stale=true',
       tone: 'warn',
     });
@@ -248,7 +305,8 @@ export function Overview() {
   if (data.alerts.failed24h > 0) {
     attention.push({
       label: 'Alert delivery failures',
-      detail: `${data.alerts.failed24h} notification attempts failed. Alerts are retried with backoff.`,
+      detail: 'Notification attempts failed. Alerts are retried with backoff.',
+      value: String(data.alerts.failed24h),
       path: '/notifications?status=failed',
       tone: 'warn',
     });
@@ -256,15 +314,26 @@ export function Overview() {
   if (data.alerts.pending > 0) {
     attention.push({
       label: 'Alerts waiting for delivery',
-      detail: `${data.alerts.pending} queued. Check the ntfy configuration if this grows.`,
+      detail: 'Queued for delivery. Check the ntfy configuration if this grows.',
+      value: String(data.alerts.pending),
       path: '/notifications?status=pending',
       tone: 'neutral',
     });
   }
   if (data.kev.status === 'error') {
+    const fallback = data.kev.available
+      ? `The last catalog, synced ${relativeTime(data.kev.syncedAt)}, is still being used.`
+      : 'No catalog is available, so findings are not ranked for known exploitation.';
     attention.push({
-      label: 'Known-exploited data is unavailable or stale',
-      detail: data.kev.error ?? 'The CISA KEV feed could not be refreshed.',
+      label: 'Known-exploited data could not be refreshed',
+      detail: `${data.kev.error ?? 'The CISA KEV feed could not be refreshed.'} ${fallback}`,
+      path: '/settings',
+      tone: 'warn',
+    });
+  } else if (data.kev.available && data.kev.stale) {
+    attention.push({
+      label: 'Known-exploited data is stale',
+      detail: `Catalog last synced ${relativeTime(data.kev.syncedAt)}. Findings added to KEV since then are not flagged.`,
       path: '/settings',
       tone: 'warn',
     });
@@ -284,13 +353,25 @@ export function Overview() {
   const scanTone = data.scans.running > 0 ? 'running' : data.scans.queued > 0 ? 'pending' : 'online';
 
   function openFinding(finding: FindingView): void {
-    navigate(`/vulnerabilities?q=${encodeURIComponent(finding.vulnId)}`);
+    // Keep the image: the same CVE can exist on several images and the list is not filtered by it.
+    navigate(
+      `/vulnerabilities?q=${encodeURIComponent(finding.vulnId)}&image=${encodeURIComponent(finding.imageId)}`,
+    );
   }
 
-  function onRowKey(event: KeyboardEvent<HTMLTableRowElement>, finding: FindingView): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      openFinding(finding);
+  async function acknowledge(finding: FindingView): Promise<void> {
+    setAcknowledging(finding.id);
+    try {
+      await api.patch(`/findings/${finding.id}/triage`, {
+        status: 'acknowledged',
+        note: finding.triageNote ?? null,
+      });
+      toast('Finding acknowledged', 'success');
+      refresh();
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'Unable to acknowledge this finding', 'error');
+    } finally {
+      setAcknowledging(null);
     }
   }
 
@@ -303,7 +384,26 @@ export function Overview() {
 
   return (
     <div className="ops-page">
-      {waitingForFirstScan ? (
+      {error && data ? (
+        <section className="ops-banner is-stale" role="status" aria-label="Showing stored data">
+          <span className="ops-banner-icon" aria-hidden="true">
+            <IconAlert width={15} height={15} />
+          </span>
+          <div className="ops-banner-copy">
+            <strong>Live updates are paused</strong>
+            <span>
+              Last refreshed {updatedAt ? relativeTime(updatedAt) : 'before this page opened'}. {error.message}
+            </span>
+          </div>
+          <div className="ops-banner-actions">
+            <button type="button" className="btn small ghost" onClick={refresh}>
+              Retry now
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {neverScanned ? (
         <section className="ops-banner" aria-label="Getting started">
           <span className="ops-banner-icon" aria-hidden="true">
             <IconActivity width={15} height={15} />
@@ -327,39 +427,47 @@ export function Overview() {
         </section>
       ) : null}
 
-      <div className="ops-risk" aria-label="Security posture">
-        <RiskStat
-          label="Critical open"
-          value={data.counts.critical}
-          meta={`${data.counts.fixable} fixable overall · ${data.counts.total} open`}
-          tone="critical"
-          onClick={() => navigate('/vulnerabilities?severity=CRITICAL')}
-        />
-        <RiskStat
-          label="High open"
-          value={data.counts.high}
-          meta={`${data.changes.newFindings24h} new in 24h`}
-          tone="high"
-          onClick={() => navigate('/vulnerabilities?severity=HIGH')}
-        />
-        <RiskStat
-          label="Known exploited"
-          value={data.counts.kev}
-          meta={
-            data.kev.available
-              ? `CISA KEV · synced ${relativeTime(data.kev.syncedAt)}`
-              : 'KEV catalog not synchronised'
-          }
-          tone="kev"
-          onClick={() => navigate('/vulnerabilities?kev=true')}
-        />
-        <RiskStat
-          label="Affected workloads"
-          value={data.workloads.affectedRunningContainers}
-          meta={`${data.workloads.affectedImages} of ${data.workloads.totalImages} images affected`}
-          tone="workloads"
-          onClick={() => navigate('/containers?status=running')}
-        />
+      <div className="ops-risk-group">
+        <div className="ops-risk" role="group" aria-label="Security posture">
+          <RiskStat
+            label="Critical open"
+            value={data.counts.critical}
+            meta=""
+            tone="critical"
+            onClick={() => navigate('/vulnerabilities?severity=CRITICAL')}
+          />
+          <RiskStat
+            label="High open"
+            value={data.counts.high}
+            meta=""
+            tone="high"
+            onClick={() => navigate('/vulnerabilities?severity=HIGH')}
+          />
+          <RiskStat
+            label="Known exploited"
+            value={data.kev.available ? data.counts.kev : '—'}
+            meta={
+              !data.kev.available
+                ? 'Catalog not synchronised · not ranked'
+                : data.kev.stale
+                  ? `CISA KEV · stale, synced ${relativeTime(data.kev.syncedAt)}`
+                  : `CISA KEV · synced ${relativeTime(data.kev.syncedAt)}`
+            }
+            tone="kev"
+            onClick={() => navigate('/vulnerabilities?kev=true')}
+          />
+          <RiskStat
+            label="Affected workloads"
+            value={data.workloads.affectedRunningContainers}
+            meta={`${data.workloads.affectedImages} of ${data.workloads.totalImages} images affected`}
+            tone="workloads"
+            onClick={() => navigate('/containers?status=running')}
+          />
+        </div>
+        <p className="ops-risk-note">
+          Across every severity: {data.counts.fixable} of {data.counts.total} open findings have a
+          fix, {data.changes.newFindings24h} appeared in the last 24h.
+        </p>
       </div>
 
       <div className="ops-grid">
@@ -374,17 +482,17 @@ export function Overview() {
                   Ranked by severity, known exploitation, fixes and exposure — not a risk score.
                 </span>
               </div>
-              <span className="ops-panel-meta">{data.findings.top.length} highest-risk</span>
+              <span className="ops-panel-meta">{ranked.length} highest-risk</span>
               <div className="ops-panel-actions">
                 <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh overview">
                   <IconRefresh width={13} height={13} />
                 </button>
                 <button type="button" className="btn small ghost" onClick={() => navigate('/vulnerabilities')}>
-                  View all
+                  All findings
                 </button>
               </div>
             </div>
-            {data.findings.top.length === 0 ? (
+            {ranked.length === 0 ? (
               <EmptyState
                 icon={<IconCheck width={24} height={24} />}
                 title="No critical or high findings"
@@ -409,30 +517,50 @@ export function Overview() {
                       <th scope="col">Package</th>
                       <th scope="col">Workload</th>
                       <th scope="col">Signals</th>
-                      <th scope="col">Seen</th>
+                      <th scope="col">First seen</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.findings.top.map((finding) => (
+                    {ranked.map((finding) => (
                       <tr
                         key={finding.id}
-                        tabIndex={0}
                         onClick={() => openFinding(finding)}
-                        onKeyDown={(event) => onRowKey(event, finding)}
                         onFocus={() => setSelectedId(finding.id)}
                       >
                         <td>
                           <div className="ops-cell-prio">
-                            <PriorityBadge tier={finding.priority.tier} factors={finding.priority.factors} />
+                            <PriorityBadge
+                              tier={finding.priority.tier}
+                              factors={finding.priority.factors}
+                              label={PRIORITY_LABELS[finding.priority.tier]}
+                            />
                             <SeverityBadge severity={finding.severity} />
                           </div>
                         </td>
                         <td>
-                          <div className="ops-vuln-id">{finding.vulnId}</div>
+                          <div className="ops-vuln-id">
+                            <a
+                              className="ops-vuln-link"
+                              href={`/vulnerabilities?q=${encodeURIComponent(finding.vulnId)}&image=${encodeURIComponent(finding.imageId)}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                openFinding(finding);
+                              }}
+                            >
+                              {finding.vulnId}
+                            </a>
+                          </div>
                           <div className="ops-vuln-title" title={finding.title ?? undefined}>
                             {finding.title ?? `${finding.pkgName} requires review`}
                           </div>
                           <div className="ops-mobile-signals">
+                            <span className="ops-mobile-workload">
+                              {finding.containers[0]?.imageRef ?? shortImageId(finding.imageId)}
+                            </span>
+                            {finding.triageStatus === 'acknowledged' ? (
+                              <span className="badge neutral">Acknowledged</span>
+                            ) : null}
                             <KevBadge kev={finding.kev} />
                             {finding.exposure ? (
                               <ExposureBadge state={finding.exposure} reason={finding.containers[0]?.exposureReason} />
@@ -452,12 +580,15 @@ export function Overview() {
                           <div className="ops-workload" title={finding.containers[0]?.imageRef ?? undefined}>
                             {finding.containers[0]?.imageRef ?? shortImageId(finding.imageId)}
                           </div>
-                          <div className="ops-sub" title={workloadSummary(finding)}>
+                          <div className="ops-sub" title={workloadDetail(finding)}>
                             {workloadSummary(finding)}
                           </div>
                         </td>
                         <td>
                           <div className="ops-signals">
+                            {finding.triageStatus === 'acknowledged' ? (
+                              <span className="badge neutral">Acknowledged</span>
+                            ) : null}
                             <KevBadge kev={finding.kev} />
                             {finding.exposure ? (
                               <ExposureBadge state={finding.exposure} reason={finding.containers[0]?.exposureReason} />
@@ -518,7 +649,7 @@ export function Overview() {
                       type="button"
                       className="ops-scan-row"
                       onClick={() => navigate('/scans')}
-                      aria-label={`Open scans for ${scan.imageRef}`}
+                      aria-label={`Open scans for ${scan.imageRef}: ${outcome.text}`}
                     >
                       <span className={`status-dot ${scan.status}`} aria-hidden="true" />
                       <span className="ops-scan-image" title={scan.imageRef}>
@@ -625,6 +756,16 @@ export function Overview() {
                 <button type="button" className="btn primary" onClick={() => openFinding(selected)}>
                   Review finding
                 </button>
+                {selected.triageStatus === 'acknowledged' ? null : (
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    disabled={acknowledging === selected.id}
+                    onClick={() => void acknowledge(selected)}
+                  >
+                    Acknowledge
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn ghost"
@@ -665,9 +806,9 @@ export function Overview() {
               onClick={() => navigate('/scans')}
             />
             <CoverageRow
-              tone="online"
+              tone={data.scans.lastSuccessfulAt ? 'online' : 'pending'}
               label="Last successful scan"
-              value={relativeTime(data.scans.lastSuccessfulAt)}
+              value={data.scans.lastSuccessfulAt ? relativeTime(data.scans.lastSuccessfulAt) : 'Never'}
               detail={latestSuccess?.imageRef ?? `${data.scans.success24h} succeeded in 24h`}
               onClick={() => navigate('/scans')}
             />
@@ -683,7 +824,7 @@ export function Overview() {
                 key={item.label}
                 tone={attentionTone(item.tone)}
                 label={item.label}
-                value="Open"
+                value={item.value}
                 detail={item.detail}
                 onClick={() => navigate(item.path)}
               />
@@ -691,7 +832,7 @@ export function Overview() {
             {attention.length === 0 ? (
               <div className="ops-all-clear">
                 <IconCheck width={14} height={14} />
-                <span>Every environment was contacted, scans are recent and alerts are delivered.</span>
+                <span>Every enabled environment was contacted, scans are recent and alerts are delivered.</span>
               </div>
             ) : null}
           </section>

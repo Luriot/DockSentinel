@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type EnvironmentSummary, type ScanRecord, type ScanStatus } from '../api.ts';
-import { useApi } from '../hooks.ts';
+import { useApi, useRoute } from '../hooks.ts';
 import {
   Drawer,
   EmptyState,
@@ -30,9 +30,15 @@ interface ScansResponse {
 }
 
 export function Scans() {
+  const route = useRoute();
   const toast = useToast();
-  const [status, setStatus] = useState<ScanStatus | ''>('');
-  const [environmentId, setEnvironmentId] = useState('');
+  const [status, setStatus] = useState<ScanStatus | ''>(() => {
+    const value = route.params.get('status');
+    return value === 'queued' || value === 'running' || value === 'success' || value === 'failed' || value === 'cancelled'
+      ? value
+      : '';
+  });
+  const [environmentId, setEnvironmentId] = useState(route.params.get('envId') ?? '');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
 

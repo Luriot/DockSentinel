@@ -188,10 +188,28 @@ export function SeverityBadge({ severity, count }: { severity: Severity | string
   );
 }
 
-export function PriorityBadge({ tier, factors }: { tier: string; factors?: string[] }) {
+export function PriorityBadge({
+  tier,
+  factors,
+  label,
+}: {
+  tier: string;
+  factors?: string[];
+  label?: string;
+}) {
   return (
-    <span className={`tier tier-${tier}`} title={factors?.join(' · ')} aria-label={`Priority ${tier}`}>
+    <span
+      className={`tier tier-${tier}`}
+      title={factors?.join(' · ')}
+      aria-label={`Priority ${tier}${label ? `: ${label}` : ''}`}
+    >
       {tier}
+      {label ? (
+        <span className="tier-label">
+          {' · '}
+          {label}
+        </span>
+      ) : null}
     </span>
   );
 }

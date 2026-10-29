@@ -141,7 +141,8 @@ interface AppShellProps {
 
 export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps) {
   const route = useRoute();
-  const overview = useApi<OverviewData>('/overview', { intervalMs: 30_000 });
+  // Same cadence as the Overview view so the sidebar badge and the page tiles cannot drift apart.
+  const overview = useApi<OverviewData>('/overview', { intervalMs: 15_000 });
   const health = useApi<{ version: string }>('/health');
   const system = useApi<{ scanner: { available: boolean; version: string | null }; scans: { active: number } }>(
     '/system',

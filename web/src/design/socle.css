@@ -66,6 +66,10 @@
   --ds-space-6: 24px;
   --ds-control: 30px;
   --ds-row: 44px;
+  --type-meta: 11px;
+  --type-body: 13px;
+  --type-title: 16px;
+  --type-display: 34px;
 }
 
 :root[data-theme='light'] {
@@ -705,7 +709,7 @@ h4 {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-family: var(--font);
-  font-size: 9.5px;
+  font-size: var(--type-meta);
   font-weight: 600;
   line-height: 1.55;
   letter-spacing: 0;
@@ -799,9 +803,12 @@ h4 {
   background: var(--panel-3);
   color: var(--text-muted);
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: var(--type-meta);
   font-weight: 600;
   line-height: 1.5;
+  white-space: nowrap;
+  /* Blockified inside the flex priority cell; keep the code and its word on one line. */
+  grid-auto-flow: column;
 }
 
 /* Priority is a separate axis from severity: keep it neutral on purpose. */
@@ -817,6 +824,15 @@ h4 {
   border-color: var(--border);
   background: var(--panel-3);
   color: var(--text-muted);
+}
+
+/* The code alone is a lookup; the word is the answer. */
+.tier-label {
+  font-family: var(--font);
+  font-size: var(--type-meta);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .status-line {
@@ -1146,6 +1162,15 @@ table.table tbody tr:focus-visible {
   color: var(--accent);
 }
 
+.ops-banner.is-stale {
+  border-left-color: var(--high);
+}
+
+.ops-banner.is-stale .ops-banner-icon {
+  border-color: var(--high-border);
+  color: var(--high);
+}
+
 .ops-banner-copy {
   min-width: 0;
   flex: 1;
@@ -1154,7 +1179,7 @@ table.table tbody tr:focus-visible {
 .ops-banner-copy strong {
   display: block;
   color: var(--text);
-  font-size: 11.5px;
+  font-size: var(--type-body);
   font-weight: 600;
 }
 
@@ -1162,7 +1187,7 @@ table.table tbody tr:focus-visible {
   display: block;
   margin-top: 2px;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: var(--type-meta);
   line-height: 1.45;
 }
 
@@ -1177,6 +1202,20 @@ table.table tbody tr:focus-visible {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+}
+
+.ops-risk-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The tiles count one severity each; these totals span all of them, so they live outside. */
+.ops-risk-note {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--type-meta);
+  line-height: 1.45;
 }
 
 .ops-stat {
@@ -1205,7 +1244,7 @@ table.table tbody tr:focus-visible {
 }
 
 .ops-stat:focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
 
@@ -1215,7 +1254,7 @@ table.table tbody tr:focus-visible {
   gap: 6px;
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: var(--type-meta);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1250,7 +1289,7 @@ table.table tbody tr:focus-visible {
   margin-top: 4px;
   color: var(--text);
   font-family: var(--display);
-  font-size: 34px;
+  font-size: var(--type-display);
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.04em;
@@ -1262,7 +1301,7 @@ table.table tbody tr:focus-visible {
   margin-top: 5px;
   overflow: hidden;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--type-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1309,7 +1348,7 @@ table.table tbody tr:focus-visible {
 .ops-panel-title {
   margin: 0;
   color: var(--text);
-  font-size: 11.5px;
+  font-size: var(--type-body);
   font-weight: 600;
 }
 
@@ -1318,7 +1357,7 @@ table.table tbody tr:focus-visible {
   margin-top: 1px;
   overflow: hidden;
   color: var(--text-dim);
-  font-size: 9.5px;
+  font-size: var(--type-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1326,7 +1365,7 @@ table.table tbody tr:focus-visible {
 .ops-panel-meta {
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: var(--type-meta);
   white-space: nowrap;
 }
 
@@ -1344,7 +1383,7 @@ table.table tbody tr:focus-visible {
   background: none;
   color: var(--accent);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: var(--type-meta);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1361,9 +1400,11 @@ table.table tbody tr:focus-visible {
 
 table.ops-table {
   width: 100%;
+  /* Below this the fixed columns squeeze their headers into each other; scroll instead. */
+  min-width: 760px;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 11px;
+  font-size: var(--type-body);
 }
 
 table.ops-table th {
@@ -1372,7 +1413,7 @@ table.ops-table th {
   background: var(--panel-2);
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: var(--type-meta);
   font-weight: 500;
   letter-spacing: 0.04em;
   text-align: left;
@@ -1380,12 +1421,12 @@ table.ops-table th {
   white-space: nowrap;
 }
 
-table.ops-table th:nth-child(1) { width: 82px; }
-table.ops-table th:nth-child(2) { width: 30%; }
-table.ops-table th:nth-child(3) { width: 150px; }
-table.ops-table th:nth-child(4) { width: 150px; }
+table.ops-table th:nth-child(1) { width: 114px; }
+table.ops-table th:nth-child(2) { width: 19%; }
+table.ops-table th:nth-child(3) { width: 148px; }
+table.ops-table th:nth-child(4) { width: 172px; }
 table.ops-table th:nth-child(5) { width: 116px; }
-table.ops-table th:nth-child(6) { width: 38px; }
+table.ops-table th:nth-child(6) { width: 88px; }
 
 table.ops-table td {
   padding: 8px 10px;
@@ -1406,7 +1447,7 @@ table.ops-table tbody tr:hover td:first-child {
 }
 
 table.ops-table tbody tr:focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
 
@@ -1425,17 +1466,27 @@ table.ops-table tbody tr:last-child td {
   overflow: hidden;
   color: var(--text);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--type-body);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ops-vuln-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ops-vuln-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .ops-vuln-title {
   margin-top: 1px;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: var(--type-meta);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1445,7 +1496,7 @@ table.ops-table tbody tr:last-child td {
   overflow: hidden;
   color: var(--text);
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: var(--type-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1455,7 +1506,7 @@ table.ops-table tbody tr:last-child td {
   overflow: hidden;
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: var(--type-meta);
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1468,7 +1519,7 @@ table.ops-table tbody tr:last-child td {
 .ops-workload {
   overflow: hidden;
   color: var(--text);
-  font-size: 9.5px;
+  font-size: var(--type-body);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1487,7 +1538,7 @@ table.ops-table tbody tr:last-child td {
 .ops-age {
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: var(--type-meta);
   text-align: right;
   white-space: nowrap;
 }
@@ -1507,14 +1558,14 @@ table.ops-table tbody tr:last-child td {
   margin-top: 8px;
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: var(--type-meta);
 }
 
 .ops-focus h2 {
   margin: 4px 0 0;
   color: var(--text);
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: var(--type-title);
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -1523,13 +1574,13 @@ table.ops-table tbody tr:last-child td {
 .ops-focus-title {
   margin: 5px 0 0;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: var(--type-body);
   line-height: 1.4;
 }
 
 .ops-focus-meta {
   display: grid;
-  grid-template-columns: 70px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   gap: 4px 8px;
   margin: 10px 0 0;
   padding-top: 9px;
@@ -1539,7 +1590,7 @@ table.ops-table tbody tr:last-child td {
 .ops-focus-meta dt {
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 7.5px;
+  font-size: var(--type-meta);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1549,7 +1600,7 @@ table.ops-table tbody tr:last-child td {
   overflow-wrap: anywhere;
   color: var(--text);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: var(--type-meta);
   line-height: 1.45;
 }
 
@@ -1571,15 +1622,16 @@ table.ops-table tbody tr:last-child td {
 .ops-factor {
   padding: 1px 5px;
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-family: var(--mono);
-  font-size: 7.5px;
+  font-size: var(--type-meta);
   line-height: 1.5;
 }
 
 .ops-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   margin-top: 11px;
 }
@@ -1595,7 +1647,7 @@ table.ops-table tbody tr:last-child td {
   border-bottom: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--type-body);
   text-align: left;
   cursor: pointer;
 }
@@ -1609,7 +1661,7 @@ table.ops-table tbody tr:last-child td {
 }
 
 .ops-coverage-row:focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
 
@@ -1622,7 +1674,7 @@ table.ops-table tbody tr:last-child td {
 .ops-coverage-value {
   color: var(--text);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: var(--type-meta);
   text-align: right;
   white-space: nowrap;
 }
@@ -1631,16 +1683,8 @@ table.ops-table tbody tr:last-child td {
   grid-column: 2 / -1;
   margin-top: -2px;
   color: var(--text-dim);
-  font-size: 9px;
+  font-size: var(--type-meta);
   line-height: 1.4;
-}
-
-.ops-coverage-detail.is-danger {
-  color: var(--critical);
-}
-
-.ops-coverage-detail.is-warn {
-  color: var(--high);
 }
 
 .ops-all-clear {
@@ -1649,7 +1693,7 @@ table.ops-table tbody tr:last-child td {
   gap: 8px;
   padding: 12px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--type-body);
   line-height: 1.5;
 }
 
@@ -1677,7 +1721,7 @@ table.ops-table tbody tr:last-child td {
   background: var(--panel-2);
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: var(--type-meta);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -1685,7 +1729,7 @@ table.ops-table tbody tr:last-child td {
 .ops-subhead .ops-link {
   margin-left: auto;
   font-family: var(--font);
-  font-size: 9px;
+  font-size: var(--type-meta);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -1714,7 +1758,7 @@ table.ops-table tbody tr:last-child td {
 }
 
 .ops-scan-row:focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
 
@@ -1722,7 +1766,7 @@ table.ops-table tbody tr:last-child td {
   overflow: hidden;
   color: var(--text);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: var(--type-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1731,7 +1775,7 @@ table.ops-table tbody tr:last-child td {
   overflow: hidden;
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 7.5px;
+  font-size: var(--type-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1740,7 +1784,7 @@ table.ops-table tbody tr:last-child td {
   overflow: hidden;
   color: var(--text-muted);
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: var(--type-meta);
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1753,7 +1797,7 @@ table.ops-table tbody tr:last-child td {
 .ops-scan-empty {
   padding: 8px 12px;
   color: var(--text-dim);
-  font-size: 9px;
+  font-size: var(--type-meta);
 }
 
 .ops-activity-list {
@@ -1812,18 +1856,18 @@ table.ops-table tbody tr:last-child td {
 .ops-activity-copy {
   min-width: 0;
   color: var(--text);
-  font-size: 10px;
+  font-size: var(--type-body);
 }
 
 .ops-activity-copy .mono {
-  font-size: 9px;
+  font-size: var(--type-meta);
 }
 
 .ops-activity-meta {
   margin-top: 1px;
   overflow: hidden;
   color: var(--text-dim);
-  font-size: 9px;
+  font-size: var(--type-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1835,7 +1879,7 @@ table.ops-table tbody tr:last-child td {
   background: none;
   color: var(--accent);
   font: inherit;
-  font-size: 9.5px;
+  font-size: var(--type-body);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1860,7 +1904,7 @@ table.ops-table tbody tr:last-child td {
   margin: 0 auto 24px;
   padding: 0 20px;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--type-meta);
   line-height: 1.5;
   text-align: center;
 }
@@ -3326,24 +3370,40 @@ table.vuln-table-individual th:nth-child(7) { width: 64px; }
   .ops-mobile-signals {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px;
+    align-items: center;
+    gap: 4px;
     margin-top: 4px;
   }
 
+  /* The workload column moves into the vulnerability cell: a 390px table cannot hold both at 13px. */
+  .ops-mobile-workload {
+    flex-basis: 100%;
+    font-family: var(--mono);
+    font-size: var(--type-meta);
+    color: var(--text-dim);
+  }
+
+  /* 62px of priority cell cannot hold the word; the code still carries the tier. */
+  .tier-label {
+    display: none;
+  }
+
+  /* The phone table drops three columns, so it fits without the desktop floor. */
+  table.ops-table {
+    min-width: 0;
+  }
+
   table.ops-table th:nth-child(1) {
-    width: 62px;
+    width: 76px;
   }
 
   table.ops-table th:nth-child(2) {
-    width: 34%;
-  }
-
-  table.ops-table th:nth-child(4) {
-    width: 28%;
-  }
-
-  table.ops-table th:nth-child(5) {
     width: auto;
+  }
+
+  table.ops-table th:nth-child(4),
+  table.ops-table td:nth-child(4) {
+    display: none;
   }
 }
 

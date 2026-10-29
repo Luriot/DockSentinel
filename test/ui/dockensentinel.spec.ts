@@ -58,10 +58,10 @@ test('priority queue leads into the vulnerability workflow', async ({ page }) =>
   const queue = page.locator('table').first();
   await expect(queue.locator('tbody tr')).toHaveCount(4);
   await expect(queue).toContainText('CVE-2024-1111');
-  await expect(queue.locator('tbody tr').first().locator('.tier')).toHaveText('P1');
+  await expect(queue.locator('tbody tr').first().locator('.tier')).toHaveText('P1 · Fix today');
 
   await queue.locator('tbody tr').first().click();
-  await expect(page).toHaveURL(/\/vulnerabilities\?q=CVE-2024-1111/);
+  await expect(page).toHaveURL(/\/vulnerabilities\?q=CVE-2024-1111&image=sha256/);
   await expect(page.getByRole('heading', { name: 'Vulnerabilities', level: 1 })).toBeVisible();
 
   // The grouped view is the default: open the CVE, then the individual finding.
@@ -298,6 +298,22 @@ test('every top-level page avoids horizontal overflow on a phone', async ({ page
   }
 });
 
+test('deep links open the filtered view they name', async ({ page }) => {
+  await login(page);
+  for (const [route, expected] of [
+    ['/containers?status=running', 'running'],
+    ['/scans?status=failed', 'failed'],
+    ['/notifications?status=failed', 'failed'],
+  ] as const) {
+    await page.goto(`${server.url}${route}`);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    const values = await page
+      .locator('select')
+      .evaluateAll((nodes) => nodes.map((node) => (node as { value: string }).value));
+    expect(values, `${route} must seed its status filter`).toContain(expected);
+  }
+});
+
 test('keyboard basics: skip link and current-page navigation are exposed', async ({ page }) => {
   await login(page);
   await page.goto(server.url);
@@ -306,7 +322,7 @@ test('keyboard basics: skip link and current-page navigation are exposed', async
   await expect(page.locator('.skip-link')).toBeFocused();
   await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
 
-  await page.locator('.ops-table tbody tr').first().focus();
+  await page.locator('.ops-table tbody tr .ops-vuln-link').first().focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/vulnerabilities\?q=/);
 });

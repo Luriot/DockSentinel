@@ -8,7 +8,7 @@ import {
   type ScanRecord,
   type SeverityCounts,
 } from '../api.ts';
-import { useApi, useDebounced, navigate } from '../hooks.ts';
+import { useApi, useDebounced, navigate, useRoute } from '../hooks.ts';
 import {
   Drawer,
   EmptyState,
@@ -41,10 +41,14 @@ interface ContainerDetail {
 }
 
 export function Containers() {
-  const [search, setSearch] = useState('');
+  const route = useRoute();
+  const [search, setSearch] = useState(route.params.get('q') ?? '');
   const debouncedSearch = useDebounced(search);
-  const [environmentId, setEnvironmentId] = useState('');
-  const [status, setStatus] = useState<'running' | 'stopped' | 'all'>('all');
+  const [environmentId, setEnvironmentId] = useState(route.params.get('envId') ?? '');
+  const [status, setStatus] = useState<'running' | 'stopped' | 'all'>(() => {
+    const value = route.params.get('status');
+    return value === 'running' || value === 'stopped' ? value : 'all';
+  });
   const [exposure, setExposure] = useState('');
   const [includeRemoved, setIncludeRemoved] = useState(false);
   const [page, setPage] = useState(1);

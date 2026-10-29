@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type AlertRecord, type PublicSettings, type Severity } from '../api.ts';
-import { useApi, navigate } from '../hooks.ts';
+import { useApi, navigate, useRoute } from '../hooks.ts';
 import {
   Drawer,
   EmptyState,
@@ -26,8 +26,12 @@ interface NotificationsResponse {
 }
 
 export function Notifications() {
+  const route = useRoute();
   const toast = useToast();
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(() => {
+    const value = route.params.get('status');
+    return value === 'pending' || value === 'sent' || value === 'failed' ? value : '';
+  });
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<AlertRecord | null>(null);
   const [form, setForm] = useState<{

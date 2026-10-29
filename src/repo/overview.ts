@@ -178,7 +178,9 @@ export function buildOverview(db: Db, settings: AppSettings, now: Date = new Dat
   const findings = listFindings(db, {
     severities: ['CRITICAL', 'HIGH'],
     page: 1,
-    pageSize: 8,
+    // Wider than the queue: the tier weighs exploitation, fixes, running state and exposure on top
+    // of severity, so a KEV high finding must not be hidden behind eight ordinary criticals.
+    pageSize: 25,
     state: 'open',
   });
 
