@@ -46,9 +46,10 @@ test('sign-in validates credentials and loads the security overview', async ({ p
   await page.getByLabel('Password').fill(TEST_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
-  await expect(page.getByText('Critical open').first()).toBeVisible();
-  await expect(page.locator('.ops-stat-value').first()).toHaveText('2');
-  await expect(page.locator('.watch-age')).toContainText('Scan data');
+  await expect(page.getByText('Open findings').first()).toBeVisible();
+  await expect(page.locator('.risk-legend-value').first()).toHaveText('2');
+  await expect(page.locator('.risk-legend-item').first()).toContainText('Critical');
+  await expect(page.locator('.watch-age')).toContainText('Data');
   await page.screenshot({ path: join(SCREENS, '01-overview.png'), fullPage: true });
 });
 
@@ -61,7 +62,7 @@ test('priority queue leads into the vulnerability workflow', async ({ page }) =>
   await expect(queue).toContainText('CVE-2024-1111');
   await expect(queue.locator('tbody tr').first().locator('.tier')).toHaveText('#1 · Fix today');
   // CVE-2024-2222 has no fixed version: the action word must not promise a fix.
-  await expect(queue.locator('tbody tr').nth(1).locator('.tier')).toHaveText('#2 · No fix — watch');
+  await expect(queue.locator('tbody tr').nth(1).locator('.tier')).toHaveText('#2 · No fix');
 
   await queue.locator('tbody tr').first().click();
   await expect(page).toHaveURL(/\/vulnerabilities\?q=CVE-2024-1111&image=sha256/);
@@ -210,8 +211,8 @@ test('configuration and secret findings show metadata without secret values', as
   await login(page);
   await page.goto(`${server.url}/content`);
   await expect(page.getByRole('heading', { name: 'Configuration & secrets', level: 1 })).toBeVisible();
-  await expect(page.getByText('1 misconfigurations')).toBeVisible();
-  await expect(page.getByText('1 secrets')).toBeVisible();
+  await expect(page.getByText('1 misconfiguration')).toBeVisible();
+  await expect(page.getByText('1 secret')).toBeVisible();
   await expect(page.locator('table tbody tr')).toHaveCount(2);
   await page.locator('table tbody tr').filter({ hasText: 'Secret' }).first().click();
   const drawer = page.getByRole('dialog');
@@ -281,10 +282,14 @@ test('mobile layout has no horizontal overflow and keeps navigation reachable', 
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.goto(server.url);
-  await expect(page.getByRole('link', { name: 'Overview' }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
   const overflow = await page.evaluate('document.documentElement.scrollWidth - window.innerWidth');
   expect(overflow).toBeLessThanOrEqual(1);
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(page.getByRole('link', { name: 'Overview' }).first()).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeHidden();
   await page.screenshot({ path: join(SCREENS, '08-mobile-overview.png'), fullPage: true });
 });
 
@@ -403,8 +408,8 @@ test('first-run setup requires the setup token and creates the administrator', a
 
     await page.getByLabel('Setup code').fill('ui-setup-token');
     await page.getByRole('button', { name: 'Create account and continue' }).click();
-    await expect(page.getByRole('heading', { name: 'Welcome', level: 1 })).toBeVisible();
-    await expect(page.getByRole('heading', { name: "Let's connect Docker" })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Setup', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Connect Docker', level: 2 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Use Docker on this computer' })).toBeVisible();
     await page.screenshot({ path: join(SCREENS, '09-setup-empty.png'), fullPage: true });
   } finally {

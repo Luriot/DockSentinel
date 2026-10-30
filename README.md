@@ -38,7 +38,7 @@ Docker endpoints ──► discovery ──► image scan (Trivy) ──► norm
   longer counted multiple times.
 - Per-image **Exclude** toggle in Images: quarantined or unused images stop being scanned (existing
   findings stay visible); **Include** resumes the schedule.
-- Dark "watch floor" interface by default, with a light theme one click away in **Settings → Appearance**.
+- Dark "night watch" interface by default, with a light theme one click away in **Settings → Appearance**.
   The choice is remembered per browser; fonts are self-hosted (no CDN or external calls).
 - First-run wizard with one-click Docker detection, inline ntfy setup, a visible **Scan now** action and
   progress until the first scan finishes.

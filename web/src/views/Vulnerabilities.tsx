@@ -20,6 +20,7 @@ import {
   IconPlay,
   IconRefresh,
   IconSearch,
+  IconX,
   InlineLoading,
   KevBadge,
   Pagination,
@@ -318,7 +319,7 @@ export function Vulnerabilities() {
             <IconSearch width={14} height={14} aria-hidden="true" />
             <input
               className="input"
-              placeholder="CVE, package, title or image"
+              placeholder="CVE, package or image"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search findings"
@@ -490,7 +491,7 @@ export function Vulnerabilities() {
                 onClick={() => setImageId('')}
                 aria-label="Remove image filter"
               >
-                ✕
+                <IconX width={12} height={12} />
               </button>
             </span>
           </div>
@@ -502,14 +503,9 @@ export function Vulnerabilities() {
           <div>
             <h2 id="vuln-list-title">{grouped ? 'Grouped findings' : 'Individual findings'}</h2>
             <span className="vuln-list-sub">
-              {grouped
-                ? 'One row per CVE and package. Switch to individual findings for per-finding versions, CVSS, status and triage.'
-                : 'Every row is a finding attached to an image.'}
+              {grouped ? 'One row per CVE and package' : 'Every finding attached to an image'}
             </span>
           </div>
-          <span className="vuln-rank-note">
-            Server order: severity, KEV, fix availability, running state, last seen
-          </span>
         </div>
 
         {tableError ? <ErrorPanel error={grouped ? groupedResults.error! : error!} onRetry={retry} /> : null}

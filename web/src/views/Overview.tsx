@@ -38,32 +38,7 @@ const NO_FIX_LONG = 'No fix — accept and watch';
 function actionWord(finding: FindingView, compact = false): string {
   const label = PRIORITY_LABELS[finding.priority.tier] ?? finding.priority.tier;
   if (finding.fixedVersion) return label;
-  return compact ? 'No fix — watch' : NO_FIX_LONG;
-}
-
-function RiskStat({
-  label,
-  value,
-  meta,
-  tone,
-  onClick,
-}: {
-  label: string;
-  value: number | string;
-  meta?: string;
-  tone: 'critical' | 'high' | 'kev' | 'workloads';
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" className={`ops-stat is-${tone}`} onClick={onClick}>
-      <span className="ops-stat-label">
-        <span className="ops-stat-mark" aria-hidden="true" />
-        {label}
-      </span>
-      <span className="ops-stat-value">{value}</span>
-      {meta ? <span className="ops-stat-meta">{meta}</span> : null}
-    </button>
-  );
+  return compact ? 'No fix' : NO_FIX_LONG;
 }
 
 function CoverageRow({
@@ -388,6 +363,13 @@ export function Overview() {
   const recentEvents = data.events.slice(0, 4);
   const latestSuccess = data.scans.recent.find((scan) => scan.status === 'success');
   const scanTone = data.scans.running > 0 ? 'running' : data.scans.queued > 0 ? 'pending' : 'online';
+  const segments: { key: 'critical' | 'high' | 'medium' | 'low' | 'unknown'; label: string; count: number }[] = [
+    { key: 'critical', label: 'Critical', count: data.counts.critical },
+    { key: 'high', label: 'High', count: data.counts.high },
+    { key: 'medium', label: 'Medium', count: data.counts.medium },
+    { key: 'low', label: 'Low', count: data.counts.low },
+    { key: 'unknown', label: 'Unknown', count: data.counts.unknown },
+  ];
 
   function openFinding(finding: FindingView): void {
     // Keep the image: the same CVE can exist on several images and the list is not filtered by it.
@@ -538,7 +520,7 @@ export function Overview() {
             )}
             <button
               type="button"
-              className="btn ghost"
+              className="ops-text-link"
               onClick={() => navigate(`/images?image=${encodeURIComponent(selected.imageId)}`)}
             >
               Image &amp; containers
@@ -547,49 +529,80 @@ export function Overview() {
         </section>
       ) : null}
 
-      <div className="ops-risk-group">
-        <div className="ops-risk" role="group" aria-label="Security posture">
-          <RiskStat
-            label="Critical open"
-            value={data.counts.critical}
-            meta=""
-            tone="critical"
-            onClick={() => navigate('/vulnerabilities?severity=CRITICAL')}
-          />
-          <RiskStat
-            label="High open"
-            value={data.counts.high}
-            meta=""
-            tone="high"
-            onClick={() => navigate('/vulnerabilities?severity=HIGH')}
-          />
-          <RiskStat
-            label="Known exploited"
-            value={data.kev.available ? data.counts.kev : '—'}
-            meta={
-              !data.kev.available
-                ? 'Catalog not synchronised · not ranked'
+      <section className="risk" aria-label="Open findings">
+        <div className="risk-main">
+          <div className="risk-total">
+            <span className="risk-label">Open findings</span>
+            <span className="risk-value">{data.counts.total}</span>
+            <span className="risk-sub">{data.counts.fixable} with a fix</span>
+          </div>
+          <div className="risk-chart">
+            <div
+              className={`risk-bar${data.counts.total === 0 ? ' is-empty' : ''}`}
+              role="img"
+              aria-label={`${data.counts.critical} critical, ${data.counts.high} high, ${data.counts.medium} medium, ${data.counts.low} low and ${data.counts.unknown} unknown open findings`}
+            >
+              {segments
+                .filter((segment) => segment.count > 0)
+                .map((segment) => (
+                  <span
+                    key={segment.key}
+                    className={`risk-seg is-${segment.key}`}
+                    style={{ flexGrow: segment.count, minWidth: 6 }}
+                  />
+                ))}
+            </div>
+            <div className="risk-legend">
+              {segments.map((segment) => (
+                <button
+                  key={segment.key}
+                  type="button"
+                  className="risk-legend-item"
+                  aria-label={`${segment.count} ${segment.label.toLowerCase()} open findings`}
+                  onClick={() => navigate(`/vulnerabilities?severity=${segment.key.toUpperCase()}`)}
+                >
+                  <span className={`risk-mark is-${segment.key}`} aria-hidden="true" />
+                  <span className="risk-legend-value">{segment.count}</span>
+                  <span className="risk-legend-label">{segment.label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="risk-note">
+              {data.counts.total === 0
+                ? `Nothing is open. ${data.changes.newFindings24h} appeared and ${data.changes.resolvedFindings24h} resolved in the last 24h.`
+                : `${data.changes.newFindings24h} appeared · ${data.changes.resolvedFindings24h} resolved in the last 24h`}
+            </p>
+          </div>
+        </div>
+        <div className="risk-side">
+          <button
+            type="button"
+            className="risk-side-item"
+            onClick={() => navigate('/vulnerabilities?kev=true')}
+          >
+            <span className="risk-side-label">Known exploited</span>
+            <span className="risk-side-value">{data.kev.available ? data.counts.kev : '—'}</span>
+            <span className="risk-side-meta">
+              {!data.kev.available
+                ? 'Catalog not loaded'
                 : data.kev.stale
                   ? `CISA KEV · stale, synced ${relativeTime(data.kev.syncedAt)}`
-                  : `CISA KEV · synced ${relativeTime(data.kev.syncedAt)}`
-            }
-            tone="kev"
-            onClick={() => navigate('/vulnerabilities?kev=true')}
-          />
-          <RiskStat
-            label="Affected workloads"
-            value={data.workloads.affectedRunningContainers}
-            meta={`${data.workloads.affectedImages} of ${data.workloads.totalImages} images affected`}
-            tone="workloads"
+                  : `CISA KEV · synced ${relativeTime(data.kev.syncedAt)}`}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="risk-side-item"
             onClick={() => navigate('/containers?status=running')}
-          />
+          >
+            <span className="risk-side-label">Affected workloads</span>
+            <span className="risk-side-value">{data.workloads.affectedRunningContainers}</span>
+            <span className="risk-side-meta">
+              {data.workloads.affectedImages} of {data.workloads.totalImages} images affected
+            </span>
+          </button>
         </div>
-        <p className="ops-risk-note">
-          {data.counts.total === 0
-            ? `Nothing is open. ${data.changes.newFindings24h} appeared and ${data.changes.resolvedFindings24h} were resolved in the last 24h.`
-            : `Across every severity: ${data.counts.fixable} of ${data.counts.total} open findings have a fix, ${data.changes.newFindings24h} appeared in the last 24h.`}
-        </p>
-      </div>
+      </section>
 
       <div className="ops-grid">
         <div className="ops-primary">
@@ -599,13 +612,8 @@ export function Overview() {
                 <h2 className="ops-panel-title" id="priority-queue-title">
                   Action queue
                 </h2>
-                <span className="ops-panel-sub">
-                  Critical and high only · ranked by severity, known exploitation, fix availability and exposure.
-                </span>
+                <span className="ops-panel-sub">Critical and high, ordered by what to fix first</span>
               </div>
-              {ranked.length > 0 ? (
-                <span className="ops-panel-meta">{ranked.length} highest-risk</span>
-              ) : null}
               <div className="ops-panel-actions">
                 <button type="button" className="btn small ghost" onClick={refresh} aria-label="Refresh overview">
                   <IconRefresh width={13} height={13} />
@@ -744,10 +752,7 @@ export function Overview() {
                 <h2 className="ops-panel-title" id="recent-activity-title">
                   Recent activity
                 </h2>
-                <span className="ops-panel-sub">
-                  Latest scans and finding changes · {data.changes.newFindings24h} new ·{' '}
-                  {data.changes.resolvedFindings24h} resolved in 24h
-                </span>
+                <span className="ops-panel-sub">Latest scans and finding changes</span>
               </div>
               <div className="ops-panel-actions">
                 <button

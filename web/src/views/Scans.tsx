@@ -5,7 +5,6 @@ import {
   Drawer,
   EmptyState,
   ErrorPanel,
-  IconActivity,
   IconClock,
   IconPlay,
   IconRefresh,
@@ -85,9 +84,7 @@ export function Scans() {
     <div className="page-stack">
       <div className="scan-summary" aria-label="Scan activity summary">
         <div className="scan-summary-item">
-          <span className="scan-summary-label">
-            <IconActivity width={12} height={12} /> Active now
-          </span>
+          <span className="scan-summary-label">Active now</span>
           <span className="scan-summary-value">{(activity?.running ?? 0) + (activity?.queued ?? 0)}</span>
           <span className="scan-summary-meta">
             {activity?.running ?? 0} running · {activity?.queued ?? 0} queued · concurrency{' '}
@@ -187,8 +184,9 @@ export function Scans() {
                       <td>{scan.kind === 'content' ? 'Config & secrets' : titleCase(scan.profile)}</td>
                       <td>{titleCase(scan.trigger)}</td>
                       <td>
-                        <span className="small">{relativeTime(scan.startedAt ?? scan.queuedAt)}</span>
-                        <div className="cell-sub">{scan.finishedAt ? formatDate(scan.finishedAt) : '—'}</div>
+                        <span className="small" title={formatDate(scan.startedAt ?? scan.queuedAt)}>
+                          {relativeTime(scan.startedAt ?? scan.queuedAt)}
+                        </span>
                       </td>
                       <td>
                         {scan.status === 'success' ? (

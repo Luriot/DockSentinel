@@ -129,7 +129,7 @@ export function Images() {
             <IconSearch width={14} height={14} aria-hidden="true" />
             <input
               className="input"
-              placeholder="Search repository, tag or image ID"
+              placeholder="Repository, tag or ID"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search images"

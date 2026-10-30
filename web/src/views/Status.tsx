@@ -140,7 +140,7 @@ export function Status() {
       <section className="card" aria-label="Docker hosts">
         <div className="card-header"><div><h2 className="section-title">Docker hosts</h2><p className="section-subtitle">Connectivity at a glance</p></div></div>
         {data.environments.length === 0 ? <EmptyState title="No Docker hosts" icon={<IconServer width={22} height={22} />}><p>Connect a host from the welcome screen or Docker hosts page.</p></EmptyState> : (
-          <div className="table-wrap"><table className="table"><caption className="sr-only">Docker host connectivity</caption><thead><tr><th scope="col">Host</th><th scope="col">Status</th><th scope="col">Last contact</th><th scope="col">Scanning</th></tr></thead><tbody>
+          <div className="table-wrap"><table className="table status-hosts"><caption className="sr-only">Docker host connectivity</caption><thead><tr><th scope="col">Host</th><th scope="col">Status</th><th scope="col">Last contact</th><th scope="col">Scanning</th></tr></thead><tbody>
             {data.environments.map((environment) => (
               <tr key={environment.id}>
                 <td>{environment.name}</td>

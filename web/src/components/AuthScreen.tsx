@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api } from '../api.ts';
-import { IconAlert, IconShield } from './ui.tsx';
+import { IconAlert, WatchMark } from './ui.tsx';
 
 interface AuthScreenProps {
   needsSetup: boolean;
@@ -37,16 +37,24 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
   }
 
   return (
-    <div className="auth-solo">
-      <div className="auth-solo-inner">
-        <div className="auth-solo-brand">
+    <div className="auth">
+      <main className="auth-main">
+        <div className="auth-brand">
           <span className="brand-mark">
-            <IconShield width={18} height={18} />
+            <WatchMark size={18} />
           </span>
           <span className="brand-text">
             <span className="brand-name">DockSentinel</span>
-            <span className="brand-tag">Docker vulnerability watch</span>
+            <span className="brand-tag">Docker image watch</span>
           </span>
+        </div>
+
+        <div className="auth-copy">
+          <h2>A watch over your Docker images.</h2>
+          <p>
+            Finds the vulnerabilities worth acting on, ranks them by what you can fix, and alerts you when a serious one
+            appears.
+          </p>
         </div>
 
         <section className="auth-card" aria-labelledby="auth-title">
@@ -163,15 +171,31 @@ export function AuthScreen({ needsSetup, onAuthenticated }: AuthScreenProps) {
               ? 'No default password exists. DockSentinel refuses to expose an administrative interface without an explicit account.'
               : 'Sessions are stored in an HttpOnly, SameSite=Strict cookie. Sign in again if the session expires.'}
           </div>
-          <p className="tiny dim">
-            DockSentinel {needsSetup ? 'is protected by a first-run token' : 'is self-hosted and never sends telemetry'}.
-          </p>
         </section>
 
-        <p className="auth-solo-note">
-          Image scanning only — not an intrusion detection system. Self-hosted; no telemetry.
-        </p>
-      </div>
+        <p className="auth-foot">Image scanning only — not runtime intrusion detection. Self-hosted, no telemetry.</p>
+      </main>
+
+      <aside className="auth-side" aria-label="What DockSentinel watches">
+        <div className="auth-side-top">
+          <span className="auth-side-label">The watch</span>
+          <dl className="auth-ledger">
+            <div>
+              <dt>Images</dt>
+              <dd>Read by immutable ID from each Docker host, then scanned with Trivy</dd>
+            </div>
+            <div>
+              <dt>Findings</dt>
+              <dd>Ranked by severity, known exploitation, fix availability, running state and exposure</dd>
+            </div>
+            <div>
+              <dt>Alerts</dt>
+              <dd>Delivered through ntfy, grouped per image and deduplicated across rescans</dd>
+            </div>
+          </dl>
+        </div>
+        <p className="auth-side-foot">Read-only Docker access. Findings stay on this instance.</p>
+      </aside>
     </div>
   );
 }

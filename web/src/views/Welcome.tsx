@@ -141,10 +141,10 @@ export function Welcome({ onConnected }: { onConnected: () => void }) {
           ) : null}
           <div className="welcome-actions">
             <button type="button" className="btn primary" onClick={onConnected}>
-              Open dashboard
+              Open overview
             </button>
             <button type="button" className="btn ghost" onClick={() => navigate('/notifications')}>
-              <IconBell width={14} height={14} /> Advanced alert settings
+              <IconBell width={14} height={14} /> Alert settings
             </button>
           </div>
         </section>
@@ -274,10 +274,10 @@ export function Welcome({ onConnected }: { onConnected: () => void }) {
   return (
     <div className="welcome">
       <section className="welcome-hero">
-        <h2>Let&apos;s connect Docker</h2>
+        <h2>Connect Docker</h2>
         <p>
-          DockSentinel watches the containers and images on a Docker host. It only reads Docker metadata and scans
-          images; it never starts, stops or changes your containers.
+          DockSentinel reads container and image metadata and scans images with Trivy. It never starts, stops or
+          changes your containers.
         </p>
         <div className="welcome-actions">
           <button type="button" className="btn primary" onClick={() => void connectLocal()} disabled={busy}>

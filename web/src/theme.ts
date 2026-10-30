@@ -16,7 +16,7 @@ export function applyTheme(theme: Theme): void {
   root.style.colorScheme = theme;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', theme === 'light' ? '#f4f6f8' : '#0b0d10');
+    ?.setAttribute('content', theme === 'light' ? '#f6f1e8' : '#14110e');
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {

@@ -143,7 +143,7 @@ export function Settings() {
           </div>
           <button
             type="button"
-            className="btn small primary"
+            className="btn small"
             disabled={savingSection !== null}
             onClick={() =>
               void save('scanning', {
@@ -309,7 +309,7 @@ export function Settings() {
           </div>
           <button
             type="button"
-            className="btn small primary"
+            className="btn small"
             disabled={savingSection !== null}
             onClick={() =>
               void save('alerting', {
@@ -400,7 +400,7 @@ export function Settings() {
           </div>
           <button
             type="button"
-            className="btn small primary"
+            className="btn small"
             disabled={savingSection !== null}
             onClick={() =>
               void save('retention', {
@@ -500,7 +500,7 @@ export function Settings() {
               </label>
               <button
                 type="button"
-                className="btn small ghost"
+                className="btn small"
                 style={{ alignSelf: 'flex-start' }}
                 disabled={savingSection !== null}
                 onClick={() => void save('kev', { kevEnabled: form.kevEnabled })}

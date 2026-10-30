@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, setCsrfToken, setUnauthorizedHandler, type SessionInfo } from './api.ts';
-import { IconShield, ToastProvider } from './components/ui.tsx';
+import { ToastProvider, WatchMark } from './components/ui.tsx';
 import { AuthScreen } from './components/AuthScreen.tsx';
 import { AppShell } from './components/Layout.tsx';
 
@@ -63,7 +63,7 @@ export default function App() {
         <div className="auth-solo-inner">
           <div className="auth-solo-brand">
             <span className="brand-mark">
-              <IconShield width={18} height={18} />
+              <WatchMark size={18} />
             </span>
             <span className="brand-text">
               <span className="brand-name">DockSentinel</span>
@@ -86,7 +86,7 @@ export default function App() {
         <div className="auth-solo-inner">
           <div className="auth-solo-brand">
             <span className="brand-mark">
-              <IconShield width={18} height={18} />
+              <WatchMark size={18} />
             </span>
             <span className="brand-text">
               <span className="brand-name">DockSentinel</span>

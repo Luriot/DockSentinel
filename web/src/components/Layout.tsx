@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { createPortal } from 'react-dom';
 import { api, type OverviewData } from '../api.ts';
 import { navigate, useApi, useRoute } from '../hooks.ts';
 import { relativeTime } from '../format.ts';
@@ -6,7 +7,10 @@ import {
   IconAlert,
   IconKey,
   IconLogout,
-  IconShield,
+  IconMenu,
+  IconX,
+  WatchMark,
+  useDialogBehavior,
   useToast,
   Modal,
   Field,
@@ -32,17 +36,17 @@ interface RouteDefinition {
 const ROUTES: Record<string, RouteDefinition> = {
   '/': {
     title: 'Overview',
-    subtitle: 'Urgent vulnerabilities across your Docker workloads',
+    subtitle: 'What to patch first',
     component: Overview,
   },
   '/vulnerabilities': {
     title: 'Vulnerabilities',
-    subtitle: 'Findings with fixes, exploitation signals and affected workloads',
+    subtitle: 'Open findings, ranked',
     component: Vulnerabilities,
   },
   '/content': {
     title: 'Configuration & secrets',
-    subtitle: 'Opt-in image content and image config findings',
+    subtitle: 'Image configuration and secret findings',
     component: Content,
   },
   '/environments': {
@@ -52,27 +56,27 @@ const ROUTES: Record<string, RouteDefinition> = {
   },
   '/containers': {
     title: 'Containers',
-    subtitle: 'Workloads, their images and exposure context',
+    subtitle: 'Workloads, images and exposure',
     component: Containers,
   },
   '/images': {
     title: 'Images',
-    subtitle: 'Deduplicated image inventory and scan freshness',
+    subtitle: 'Inventory and scan age',
     component: Images,
   },
   '/scans': {
     title: 'Scans',
-    subtitle: 'Running, scheduled, successful and failed scans',
+    subtitle: 'Queue, history and failures',
     component: Scans,
   },
   '/notifications': {
     title: 'Alerts',
-    subtitle: 'ntfy delivery, alert policy and history',
+    subtitle: 'ntfy policy and delivery',
     component: Notifications,
   },
   '/status': {
     title: 'System status',
-    subtitle: 'Health, storage, backups and updates',
+    subtitle: 'Hosts, storage, backups and updates',
     component: Status,
   },
   '/settings': {
@@ -115,6 +119,123 @@ const NAV_GROUPS = [
   },
 ];
 
+const formatCount = (value: number): string => (value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(value));
+
+interface NavCounts {
+  critical: number;
+  high: number;
+  staleImages: number;
+}
+
+function NavList({ path, counts, onNavigate }: { path: string; counts: NavCounts; onNavigate: (path: string) => void }) {
+  return (
+    <nav className="nav" aria-label="Sections">
+      {NAV_GROUPS.map((group) => (
+        <div key={group.label} className="nav-group" role="group" aria-label={group.label}>
+          <span className="nav-label">{group.label}</span>
+          {group.items.map((item) => {
+            const badge =
+              item.path === '/vulnerabilities' && counts.critical + counts.high > 0
+                ? formatCount(counts.critical + counts.high)
+                : item.path === '/images' && counts.staleImages > 0
+                  ? formatCount(counts.staleImages)
+                  : null;
+            const badgeTitle =
+              item.path === '/vulnerabilities'
+                ? `${counts.critical} critical and ${counts.high} high findings`
+                : `${counts.staleImages} images with stale results`;
+            return (
+              <a
+                key={item.path}
+                className="nav-item"
+                href={item.path}
+                aria-current={path === item.path ? 'page' : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  onNavigate(item.path);
+                }}
+              >
+                <span className="nav-title">{item.label}</span>
+                {badge ? (
+                  <span className="nav-count" title={badgeTitle} aria-label={badgeTitle}>
+                    {badge}
+                  </span>
+                ) : null}
+              </a>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+interface ShellStatus {
+  state: string;
+  tone: string;
+  trivyTone: string;
+  trivyLabel: string;
+}
+
+function NavSheet({
+  path,
+  counts,
+  status,
+  onClose,
+}: {
+  path: string;
+  counts: NavCounts;
+  status: ShellStatus;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDialogBehavior(ref, onClose);
+  return createPortal(
+    <div
+      className="nav-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div ref={ref} className="nav-sheet" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div className="nav-sheet-head">
+          <span className="brand">
+            <span className="brand-mark">
+              <WatchMark size={18} />
+            </span>
+            <span className="brand-text">
+              <span className="brand-name">DockSentinel</span>
+              <span className="brand-tag">Docker image watch</span>
+            </span>
+          </span>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close navigation">
+            <IconX />
+          </button>
+        </div>
+        <NavList
+          path={path}
+          counts={counts}
+          onNavigate={(target) => {
+            onClose();
+            navigate(target);
+          }}
+        />
+        <div className="sidebar-footer nav-sheet-footer">
+          <div className="sidebar-status">
+            <span className={`status-dot ${status.tone}`} aria-hidden="true" />
+            {status.state}
+          </div>
+          <div className="sidebar-status">
+            <span className={`status-dot ${status.trivyTone}`} aria-hidden="true" />
+            {status.trivyLabel}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 interface AppShellProps {
   username: string;
   onLogout: () => void | Promise<void>;
@@ -123,17 +244,21 @@ interface AppShellProps {
 
 export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps) {
   const route = useRoute();
-  // Same cadence as the Overview view so the sidebar badge and the page tiles cannot drift apart.
+  // Same cadence as the Overview view so the rail badge and the page cannot drift apart.
   const overview = useApi<OverviewData>('/overview', { intervalMs: 15_000 });
-  const health = useApi<{ version: string }>('/health');
   const system = useApi<{ scanner: { available: boolean; version: string | null }; scans: { active: number } }>(
     '/system',
     { intervalMs: 60_000 },
   );
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [route.path]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -149,8 +274,13 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
     subtitle: 'This page does not exist',
     component: NotFound,
   };
-  const welcome = route.path === '/' && overview.data !== null && (overview.data.environments.length === 0);
+  const welcome = route.path === '/' && overview.data !== null && overview.data.environments.length === 0;
   const View = definition.component;
+
+  useEffect(() => {
+    const label = welcome ? 'Setup' : definition.title;
+    document.title = label === 'Overview' ? 'DockSentinel' : `${label} · DockSentinel`;
+  }, [definition.title, welcome]);
   const critical = overview.data?.counts.critical ?? 0;
   const high = overview.data?.counts.high ?? 0;
   const runningScans = overview.data?.scans.running ?? 0;
@@ -159,7 +289,23 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
   const lastSuccessfulAt = overview.data?.scans.lastSuccessfulAt ?? null;
   const lastSuccessAge = lastSuccessfulAt ? Date.parse(lastSuccessfulAt) : Number.NaN;
   const dataIsOld = overview.data !== null && (!Number.isFinite(lastSuccessAge) || Date.now() - lastSuccessAge > 24 * 3_600_000);
-  const formatCount = (value: number): string => (value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(value));
+  const counts: NavCounts = {
+    critical,
+    high,
+    staleImages: overview.data?.workloads.staleImages ?? 0,
+  };
+  const navCounts = counts;
+  const scannerState = runningScans > 0 ? 'Scanning now' : queuedScans > 0 ? 'Scans queued' : 'Scanner idle';
+  const shellStatus: ShellStatus = {
+    state: scannerState,
+    tone: runningScans > 0 ? 'running' : queuedScans > 0 ? 'pending' : 'online',
+    trivyTone: system.data?.scanner.available ? 'online' : system.data ? 'offline' : 'unknown',
+    trivyLabel: system.data
+      ? system.data.scanner.available
+        ? `Trivy ${system.data.scanner.version ?? 'ready'}`
+        : 'Trivy unavailable'
+      : 'Checking Trivy',
+  };
 
   async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
     await api.post('/auth/password', { currentPassword, newPassword });
@@ -184,62 +330,20 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
             }}
           >
             <span className="brand-mark">
-              <IconShield width={16} height={16} />
+              <WatchMark size={18} />
             </span>
             <span className="brand-text">
               <span className="brand-name">DockSentinel</span>
-              <span className="brand-tag">Vulnerability watch</span>
+              <span className="brand-tag">Docker image watch</span>
             </span>
           </a>
 
-          <nav className="nav-group" aria-label="Sections">
-            {NAV_GROUPS.map((group) => (
-              <div key={group.label} className="nav-group" role="group" aria-label={group.label}>
-                <span className="nav-label">{group.label}</span>
-                {group.items.map((item) => {
-                  const active = route.path === item.path;
-                  const badge =
-                    item.path === '/vulnerabilities' && critical + high > 0
-                      ? formatCount(critical + high)
-                      : item.path === '/images' && (overview.data?.workloads.staleImages ?? 0) > 0
-                        ? formatCount(overview.data?.workloads.staleImages ?? 0)
-                        : null;
-                  const badgeTitle =
-                    item.path === '/vulnerabilities'
-                      ? `${critical} critical and ${high} high findings`
-                      : `${overview.data?.workloads.staleImages ?? 0} images with stale results`;
-                  return (
-                    <a
-                      key={item.path}
-                      className="nav-item"
-                      href={item.path}
-                      aria-current={active ? 'page' : undefined}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        navigate(item.path);
-                      }}
-                    >
-                      <span className="nav-title">{item.label}</span>
-                      {badge ? (
-                        <span className="nav-count" title={badgeTitle} aria-label={badgeTitle}>
-                          {badge}
-                        </span>
-                      ) : null}
-                    </a>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
+          <NavList path={route.path} counts={navCounts} onNavigate={(path) => navigate(path)} />
 
           <div className="sidebar-footer">
             <div className="sidebar-status">
-              <span className={`status-dot ${runningScans > 0 ? 'running' : 'online'}`} aria-hidden="true" />
-              {runningScans > 0
-                ? `${runningScans} scan${runningScans === 1 ? '' : 's'} running`
-                : queuedScans > 0
-                  ? `${queuedScans} queued`
-                  : 'Scanner idle'}
+              <span className={`status-dot ${runningScans > 0 ? 'running' : queuedScans > 0 ? 'pending' : 'online'}`} aria-hidden="true" />
+              {scannerState}
             </div>
             <div className="sidebar-status">
               <span
@@ -250,20 +354,40 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                 ? system.data.scanner.available
                   ? `Trivy ${system.data.scanner.version ?? 'ready'}`
                   : 'Trivy unavailable'
-                : 'Checking scanner…'}
+                : 'Checking Trivy'}
             </div>
-            <span>DockSentinel {health.data?.version ?? ''}</span>
-            <span>Image scanning only — not runtime IDS</span>
           </div>
         </aside>
 
         <div className="main">
           <header className="topbar">
+            <button
+              type="button"
+              className="nav-toggle"
+              aria-label="Open navigation"
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen(true)}
+            >
+              <IconMenu width={18} height={18} />
+            </button>
+            <a
+              className="topbar-brand"
+              href="/"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate('/');
+              }}
+            >
+              <span className="brand-mark">
+                <WatchMark size={16} />
+              </span>
+              <span>DockSentinel</span>
+            </a>
             <div className="page-heading">
-              <h1>{welcome ? 'Welcome' : definition.title}</h1>
-              <p>{welcome ? 'A few steps to start watching your Docker images' : definition.subtitle}</p>
+              <h1>{welcome ? 'Setup' : definition.title}</h1>
+              <p>{welcome ? 'Connect Docker to start the watch' : definition.subtitle}</p>
             </div>
-            <div className="topbar-right">
+            <div className="topbar-watch">
               {environments.length > 0 ? (
                 <div className="env-chips" aria-label="Environment status">
                   {environments.slice(0, 3).map((environment) => (
@@ -294,21 +418,25 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
                   className={`watch-age${dataIsOld ? ' is-attention' : ''}`}
                   title="Age of the vulnerability data on screen: the last successful scan"
                 >
-                  {lastSuccessfulAt ? `Scan data ${relativeTime(lastSuccessfulAt)}` : 'Never scanned'}
+                  <span className="watch-tick" aria-hidden="true" />
+                  {lastSuccessfulAt ? `Data ${relativeTime(lastSuccessfulAt)}` : 'No scan yet'}
                 </span>
               ) : null}
+            </div>
+            <div className="topbar-account">
               <div className="relative" ref={menuRef}>
                 <button
                   type="button"
                   className="user-button"
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
+                  aria-label={`Account menu for ${username}`}
                   onClick={() => setMenuOpen((open) => !open)}
                 >
                   <span className="avatar" aria-hidden="true">
                     {username.slice(0, 1).toUpperCase()}
                   </span>
-                  {username}
+                  <span className="user-name">{username}</span>
                 </button>
                 {menuOpen ? (
                   <div className="menu" role="menu">
@@ -344,9 +472,8 @@ export function AppShell({ username, onLogout, onSessionRefresh }: AppShellProps
         </div>
       </div>
 
-      {passwordOpen ? (
-        <PasswordModal onClose={() => setPasswordOpen(false)} onSubmit={changePassword} />
-      ) : null}
+      {navOpen ? <NavSheet path={route.path} counts={navCounts} status={shellStatus} onClose={() => setNavOpen(false)} /> : null}
+      {passwordOpen ? <PasswordModal onClose={() => setPasswordOpen(false)} onSubmit={changePassword} /> : null}
     </>
   );
 }
@@ -387,7 +514,7 @@ function PasswordModal({
   return (
     <Modal
       title="Change password"
-      subtitle="Other active sessions will be signed out."
+      subtitle="Other active sessions will be signed out"
       onClose={onClose}
       narrow
       footer={
@@ -413,7 +540,7 @@ function PasswordModal({
             onChange={(event) => setCurrent(event.target.value)}
           />
         </Field>
-        <Field label="New password" htmlFor="new-password" hint="At least 12 characters.">
+        <Field label="New password" htmlFor="new-password" hint="At least 12 characters">
           <input
             id="new-password"
             className="input"
@@ -447,7 +574,7 @@ function NotFound() {
   return (
     <div className="card">
       <div className="empty">
-        <IconAlert width={26} height={26} />
+        <IconAlert width={24} height={24} />
         <h3>Page not found</h3>
         <p>The page you requested does not exist in this DockSentinel version.</p>
         <button type="button" className="btn primary" onClick={() => navigate('/')}>

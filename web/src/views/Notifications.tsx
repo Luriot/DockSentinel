@@ -475,7 +475,7 @@ export function Notifications() {
         {data && data.alerts.items.length > 0 ? (
           <>
             <div className="table-wrap">
-              <table className="table">
+              <table className="table alert-history">
                 <caption className="sr-only">Notification history</caption>
                 <thead>
                   <tr>
@@ -495,11 +495,11 @@ export function Notifications() {
                       </td>
                       <td>{titleCase(alert.kind)}</td>
                       <td>
-                        <div className="cell-main truncate" style={{ maxWidth: 420 }} title={alert.title}>
+                        <div className="cell-main alert-title" title={alert.title}>
                           {alert.title}
                         </div>
                         {alert.lastError ? (
-                          <div className="cell-sub truncate" style={{ maxWidth: 420, color: 'var(--critical)' }}>
+                          <div className="cell-sub alert-error">
                             {alert.lastError}
                           </div>
                         ) : null}

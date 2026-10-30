@@ -97,7 +97,7 @@ export function Containers() {
             <IconSearch width={14} height={14} aria-hidden="true" />
             <input
               className="input"
-              placeholder="Search name, image or container ID"
+              placeholder="Search containers"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search containers"

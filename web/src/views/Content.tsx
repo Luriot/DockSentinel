@@ -122,8 +122,12 @@ export function Content() {
           </button>
         </div>
         <div className="list-meta">
-          <span className="badge neutral">{data?.byKind.misconfiguration ?? 0} misconfigurations</span>
-          <span className="badge neutral">{data?.byKind.secret ?? 0} secrets</span>
+          <span className="badge neutral">
+            {data?.byKind.misconfiguration ?? 0} misconfiguration{(data?.byKind.misconfiguration ?? 0) === 1 ? '' : 's'}
+          </span>
+          <span className="badge neutral">
+            {data?.byKind.secret ?? 0} secret{(data?.byKind.secret ?? 0) === 1 ? '' : 's'}
+          </span>
           <span className="badge neutral">{data?.total ?? 0} matching</span>
           {hasFilters ? (
             <button
@@ -156,7 +160,7 @@ export function Content() {
         ) : null}
         {data && data.items.length > 0 ? (
           <div className="table-wrap">
-            <table className="table">
+            <table className="table content-table">
               <caption className="sr-only">Configuration and secret findings</caption>
               <thead>
                 <tr>

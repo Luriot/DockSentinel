@@ -19,7 +19,7 @@ const svgProps = {
   viewBox: '0 0 24 24',
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 1.8,
+  strokeWidth: 1.5,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
   'aria-hidden': true,
@@ -27,18 +27,27 @@ const svgProps = {
 
 type IconProps = SVGProps<SVGSVGElement>;
 
+/** Flat product mark: a container with one signal light. */
+export function WatchMark({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3.5" y="6" width="17" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7.5 12h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="17" cy="10" r="1.7" fill="var(--accent)" />
+    </svg>
+  );
+}
+
+export const IconMenu = (props: IconProps) => (
+  <svg {...svgProps} {...props}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </svg>
+);
+
 export const IconShield = (props: IconProps) => (
   <svg {...svgProps} {...props}>
     <path d="M12 3l7 3v6c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6z" />
     <path d="M9.5 12l1.8 1.8L15 10" />
-  </svg>
-);
-export const IconDashboard = (props: IconProps) => (
-  <svg {...svgProps} {...props}>
-    <rect x="3" y="3" width="7" height="8" rx="1.5" />
-    <rect x="14" y="3" width="7" height="5" rx="1.5" />
-    <rect x="14" y="11" width="7" height="10" rx="1.5" />
-    <rect x="3" y="14" width="7" height="7" rx="1.5" />
   </svg>
 );
 export const IconServer = (props: IconProps) => (
@@ -78,12 +87,6 @@ export const IconBell = (props: IconProps) => (
   <svg {...svgProps} {...props}>
     <path d="M18 9a6 6 0 10-12 0c0 6-2 7-2 7h16s-2-1-2-7" />
     <path d="M10 20a2 2 0 004 0" />
-  </svg>
-);
-export const IconSettings = (props: IconProps) => (
-  <svg {...svgProps} {...props}>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 00-2-1.2L14.2 3h-4.4l-.4 2.6a7 7 0 00-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 002 1.2l.4 2.6h4.4l.4-2.6a7 7 0 002-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" />
   </svg>
 );
 export const IconSearch = (props: IconProps) => (
@@ -170,14 +173,6 @@ export const IconChevronRight = (props: IconProps) => (
     <path d="M9 6l6 6-6 6" />
   </svg>
 );
-export const IconSkull = (props: IconProps) => (
-  <svg {...svgProps} {...props}>
-    <path d="M12 3a8 8 0 00-8 8c0 3 1.7 4.8 3 5.7V20h10v-3.3c1.3-.9 3-2.7 3-5.7a8 8 0 00-8-8z" />
-    <circle cx="9" cy="11" r="1.3" />
-    <circle cx="15" cy="11" r="1.3" />
-  </svg>
-);
-
 export function SeverityBadge({ severity, count }: { severity: Severity | string; count?: number }) {
   return (
     <span className={`badge sev-${severity}`}>
@@ -221,7 +216,7 @@ export function KevBadge({ kev }: { kev: number }) {
   if (kev === 1) {
     return (
       <span className="badge kev" title="Listed in CISA's Known Exploited Vulnerabilities catalog">
-        <IconSkull width={12} height={12} /> Known exploited
+        <span className="dot" aria-hidden="true" /> Known exploited
       </span>
     );
   }
@@ -449,7 +444,7 @@ export function Field({
   );
 }
 
-function useDialogBehavior(ref: React.RefObject<HTMLElement | null>, onClose: () => void): void {
+export function useDialogBehavior(ref: React.RefObject<HTMLElement | null>, onClose: () => void): void {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
 
