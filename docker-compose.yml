@@ -11,10 +11,13 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - '8080:8080'
+      # WEBUI_PORT is the host side; PORT is the container side (8080 by default). Keep both in
+      # .env (not in the YAML) so a compose pull/recreate cannot reset your host port.
+      - '${WEBUI_PORT:-8080}:${PORT:-8080}'
     environment:
       TZ: ${TZ:-UTC}
       DATA_DIR: /data
+      PORT: ${PORT:-8080}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SETUP_TOKEN: ${SETUP_TOKEN:-}
       PUID: ${PUID:-10001}
@@ -29,8 +32,8 @@ services:
       # anyone who can use this socket can control the host. Remove it if you
       # only monitor remote endpoints over TLS.
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    group_add:
-      # GID that owns /var/run/docker.sock. Find it with:
-      #   stat -c '%g' /var/run/docker.sock
-      # Docker Desktop reports 0; Unraid commonly uses the "users" group.
-      - '${DOCKER_GID:-999}'
+    # No group_add: the entrypoint grants the group that owns /var/run/docker.sock at startup.
+    # This is what makes a stale Unraid template (or this compose file without DOCKER_GID)
+    # keep working for local socket access. For an image pinned before that detection:
+    # group_add:
+    #   - '${DOCKER_GID:-281}'

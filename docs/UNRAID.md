@@ -22,17 +22,23 @@ A Community Applications–ready template is provided at `templates/docksentinel
 3. The template creates:
    - `/data` → `/mnt/user/appdata/docksentinel`
    - `/var/run/docker.sock` → the host socket
-   - Web UI on port `8080`
+   - Web UI on host port `8080` → container port `8080`. If 8080 is already used on your
+     Unraid host, change **only the host side** in the container's port setting (for example
+     `8090` → `8080`) before starting it.
 4. Start the container and read the first-run setup token:
 
 ```bash
 docker logs DockSentinel 2>&1 | grep -i "setup token"
 ```
 
-5. Open `http://<unraid-ip>:8080`, complete setup, then click **Use Docker on this computer**. If you prefer
-   the manual form:
+5. Open `http://<unraid-ip>:<host-port>` (8080 unless you changed it), complete setup, then click
+   **Use Docker on this computer**. If you prefer the manual form:
    - Kind: **Local Unix socket**
    - Address: `/var/run/docker.sock`
+
+> Updating from a copy of this template resets customised values to the defaults here. For an
+> existing install, edit the container once (see [Keeping settings across updates](#keeping-settings-across-updates))
+> instead of re-adding it from the template.
 
 ## Community Applications listing
 
@@ -61,43 +67,85 @@ reviewer may require a forum thread.
 
 ## Socket permissions on Unraid
 
-The template runs the application as `PUID=99` / `PGID=100` (Unraid's `nobody:users`) and already adds
-Unraid's Docker socket group with `--group-add=281`. Whether that is enough depends on the socket's group:
+The image is self-contained for the local Docker socket: at startup it reads the GID that owns
+`/var/run/docker.sock` and grants that group to the application process before dropping to
+`PUID`/`PGID`. **You no longer need `--group-add` for a current image**, even if the container was
+recreated from a template that predates this behaviour.
+
+The template still passes `--group-add=281` (Unraid's usual Docker socket group) so that pinned
+older image tags keep working; the auto-detection adds the real group when 281 is absent or
+different. A stale template missing the parameter is therefore no longer a reason for discovery to
+fail after an update.
+
+> Keep the container's default entrypoint (it starts as root and drops to `PUID`/`PGID` itself). If
+> you add `--user` to Extra Parameters, the detection cannot run; keep and set `--group-add` instead.
+
+Verify what the running process got:
 
 ```bash
-stat -c '%g' /var/run/docker.sock
+docker logs DockSentinel 2>&1 | grep "socket group"  # only when it had to add the group
+docker exec DockSentinel id                          # groups= should include the socket GID
+stat -c '%g' /var/run/docker.sock                    # host-side value to compare against
 ```
 
-- If the group is `281` (the usual Unraid value) or matches `PGID`, discovery works out of the box.
-- Otherwise edit the container's **Extra Parameters** and replace `281` with the group printed above:
-
-```
---group-add=<socket-gid>
-```
-
-An unknown GID is harmless (it grants nothing); it simply does not help. After changing the parameter,
-restart the container and run **Test connection** for the environment.
-
-The entrypoint keeps `--group-add` groups when it switches to `PUID`/`PGID`. If you run an older published
-image whose entrypoint drops them, set `PGID` to the socket group (here, `281`) instead until you update:
-
-```bash
-docker exec DockSentinel id   # groups= should list the socket group
-```
-
-Do not work around permission errors by making the socket world-writable. Running the container as root
-(`PUID=0`) would also grant access, but it widens the blast radius and is not recommended. A read-only
-socket proxy is a better alternative; see the deployment guide.
+- If the socket GID is `0` (Docker Desktop arrangement), it is skipped on purpose: adding the root
+  group would widen privileges. Use a socket proxy or set `PUID` appropriately.
+- If you only use remote TLS endpoints, remove the socket mapping; nothing is detected and no
+  group is added.
+- Do not make the socket world-writable. Running the container as root (`PUID=0`) would also work but
+  widens the blast radius and is not recommended. A read-only socket proxy is the better alternative;
+  see the deployment guide.
 
 If the appdata directory is not writable, set `PUID`/`PGID` to the owner of
 `/mnt/user/appdata/docksentinel`; the entrypoint corrects ownership on `/data` at startup.
 
+## Keeping settings across updates
+
+A container update does **not** pull settings from the image. Unraid recreates the container from the
+template saved locally in `/boot/config/plugins/dockerMan/templates-user/`. If that saved template is
+old, the update silently reapplies its old port (`8080`) and its old Extra Parameters (possibly
+without the socket group). That is the loop described by “every update resets my port and my
+`--group-add`”.
+
+Fix the **saved local template once**:
+
+1. **Docker** tab → DockSentinel → **Edit**.
+2. Set the Web UI **host** port to the one you want (for example `8090`). Keep the container side
+   `8080`.
+3. For a current image, Extra Parameters can stay as they are; `--group-add=281` is optional now.
+   For a pinned older image, keep `--group-add=<socket-gid>` (use the value from
+   `stat -c '%g' /var/run/docker.sock`).
+4. Click **Apply**. This writes the values into the local template.
+5. Back up the resulting XML:
+
+   ```bash
+   ls /boot/config/plugins/dockerMan/templates-user/ | grep -i dock
+   cp /boot/config/plugins/dockerMan/templates-user/<that-file>.xml /boot/config/docksentinel-template-backup.xml
+   ```
+
+Then update in place:
+
+- **Docker tab → Update** (or the container's “Check for Updates” → Update) recreates it from the
+  saved template, so your host port and parameters survive.
+- Do **not** use **Remove** + **Add Container** from Community Applications, and do not re-apply the
+  repository template just to update: both reset the values to the defaults in
+  `templates/docksentinel.xml` (host `8080`, `--group-add=281`).
+- The DockSentinel **System status → Check for updates** button is informational. It does not recreate
+  the container; follow your platform's update path.
+- If you maintain a **custom local template** with a different name, Community Applications will not
+  overwrite it; use it for the container and update from the Docker tab.
+
+If you prefer Compose on Unraid, keep `WEBUI_PORT` in a persistent `.env` next to
+`docker-compose.yml` (`docker compose pull && docker compose up -d`); the compose file no longer
+needs `group_add` and will not reset the port while that `.env` exists.
+
 ## Updates
 
 - The template uses `ghcr.io/luriot/docksentinel:latest`. Prefer pinning a version tag (create one with
-  `git tag v0.1.0 && git push origin v0.1.0`) for reproducible upgrades.
-- Updating the container image runs schema migrations automatically on start. Back up `/data` first.
-- The Trivy cache lives in the appdata directory and persists updates across container restarts.
+  `git tag v0.1.0 && git push origin v0.1.0`) and update deliberately.
+- Schema migrations run automatically on start. Back up `/data` first.
+- The Trivy cache and `/data` survive container updates; the host port and Extra Parameters survive
+  only if the saved local template is current, as described above.
 
 ## Backups
 

@@ -341,9 +341,10 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 ## Deployment, upgrades, backup and restore
 
 - Production image: multi-stage `Dockerfile` (Node 24 slim runtime + pinned Trivy 0.75.0, CA certs, `tini`,
-  `gosu`; app process drops to `PUID`/`PGID` and keeps the supplementary groups added with
-  `--group-add`, so the Docker socket group works without running as root). Compose example and Unraid
-  template included.
+  `gosu`, `util-linux`; the entrypoint grants the group that owns the mounted Docker socket and drops to
+  `PUID`/`PGID`, so local discovery works without running as root or passing `--group-add`). Compose example
+  and Unraid template included. A stale template without `--group-add` no longer breaks socket access after
+  an image update; the host port is still whatever the saved platform template says.
 - Native: `npm ci && npm run native:setup && npm run native`; data in the per-user application folder,
   managed Trivy installed and checksum-verified by `native:setup`. Node 24.12+ is required.
 - Windows Docker Desktop named pipe is entered as kind `unix`, address `//./pipe/docker_engine`.
@@ -384,8 +385,10 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model and hardeni
 
 ## Exact actions still required from the user
 
-1. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Verify
-   socket group IDs and update the Compose/template defaults if the observed values differ.
+1. **Remote Docker validation**: exercise a mutual-TLS endpoint and the real Unraid Docker Engine. Confirm
+   the startup line `granting Docker socket group <gid>` matches the host socket group; no template GID or
+   `--group-add` should be required with the current image. Verify host-port persistence across a Docker-tab
+   update using a saved local template.
 2. **Test native mode on macOS/Linux**; only Windows was executed in this environment.
 3. **Submit the prepared repository to Community Applications** at https://ca.unraid.net/submit/new using
    your Unraid forum account. The template/profile/icon are ready, but CA validation and approval are external.

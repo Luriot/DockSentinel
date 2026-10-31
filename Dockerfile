@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.title="DockSentinel" \
       org.opencontainers.image.licenses="MIT"
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tini gosu \
+ && apt-get install -y --no-install-recommends ca-certificates tini gosu util-linux \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --system --gid 10001 docksentinel \
  && useradd --system --uid 10001 --gid docksentinel --home-dir /nonexistent --shell /usr/sbin/nologin docksentinel

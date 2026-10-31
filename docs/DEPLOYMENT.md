@@ -73,11 +73,12 @@ the container path (verified there).
 ```bash
 cp .env.example .env
 # optional: set SETUP_TOKEN; otherwise read it from the logs after first start
+# optional: set WEBUI_PORT if 8080 is taken on the host (the container listens on PORT)
 docker compose up -d --build
 docker compose logs -f docksentinel
 ```
 
-Open `http://<host>:8080`. The first-run token is printed once as:
+Open `http://<host>:<WEBUI_PORT>` (8080 by default). The first-run token is printed once as:
 
 ```
 DockSentinel initial setup token: ...
@@ -93,20 +94,20 @@ The Compose file mounts the socket read-only, but Docker access is effectively p
 
 ### Socket permissions
 
-The app process runs as `PUID:PGID` (default `10001:10001`) and the entrypoint preserves the
-supplementary groups Docker adds with `--group-add`, so membership of the socket's group is enough:
+The app process runs as `PUID:PGID` (default `10001:10001`). At startup the entrypoint reads the GID
+that owns the mounted `/var/run/docker.sock` and grants that group to the application process before
+dropping privileges. **No `--group-add`/`DOCKER_GID` is needed with a current image**, including when
+the container is recreated from an old Unraid template:
 
 ```bash
-stat -c '%g' /var/run/docker.sock
+docker logs docksentinel 2>&1 | grep "socket group"  # only when it had to add the group
+docker exec docksentinel id                           # groups= includes the socket GID either way
 ```
 
-Set `DOCKER_GID` in `.env` to that value, then recreate the container. Docker Desktop on Windows/macOS
-presents the socket as `root:root` mode `0660`; for local testing use `PUID=10001 PGID=0` (or
-`--group-add 0`). On Linux hosts, if the socket is owned by `root:root` with mode `0660` and you do not
-want to run with GID 0, use a socket proxy instead. Do not "fix" it by making the socket world-writable.
-
-> Images published before this change dropped `--group-add` while switching to `PUID`; with such an
-> image, set `PGID` to the socket group instead, or update to a newer image.
+Older published images needed `group_add: ['${DOCKER_GID:-281}']` (or `--group-add <gid>`). A
+read-only socket mount is fine. Docker Desktop on Windows/macOS presents the socket differently; if
+it is owned by group `0`, the root group is deliberately not added — use a socket proxy or run with
+the permissions Docker Desktop requires. Do not make the socket world-writable.
 
 ### Volumes
 
@@ -141,7 +142,12 @@ together.
 | `SCAN_CONCURRENCY` | available CPUs (max 8) | Optional hard ceiling; the UI setting can only lower it |
 | `KEV_URL` | CISA feed | Override for mirrors/proxies |
 | `PUID` / `PGID` | `10001` | Runtime UID/GID; entrypoint chowns `/data` |
-| `DOCKER_GID` | `999` | Compose convenience variable for `group_add` |
+
+Compose-only variables (not read by the application):
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `WEBUI_PORT` | `8080` | Host port published by `docker-compose.yml`; the container listens on `PORT` (8080 by default) |
 
 Operational settings (intervals, thresholds, retention, notifications) are changed in the UI and stored
 in SQLite; they survive restarts.
@@ -353,7 +359,7 @@ implies control of the instance.
 | Scan fails with `db_unavailable` | No vulnerability database in the cache and no outbound HTTPS. Pre-seed `TRIVY_CACHE_DIR` (see [SCANNERS.md](SCANNERS.md#air-gapped--offline-operation)) or allow egress. |
 | Scan fails with `image_export_failed` / HTTP 500 | Docker daemon could not export the image (storage pressure, image removed). Retry; check daemon logs. |
 | Scan refused as `image_too_large` | The image is above `MAX_IMAGE_EXPORT_BYTES`. It is not scheduled and will not retry in a loop; raise the cap deliberately (and `SCAN_TIMEOUT_MS`, free space under `/data/tmp`) or leave it unscanned. |
-| Environment offline, permission denied on socket | Add the socket GID (`DOCKER_GID` / `--group-add`) or use a socket proxy. |
+| Environment offline, permission denied on socket | A current image detects the socket group itself (check the startup log line `socket group`). If you pinned an older image, add `--group-add <socket GID>` or use a socket proxy. |
 | TLS endpoint test fails | Certificate/key/CA mismatch, wrong SAN, or verification disabled incorrectly. Check the endpoint address (`host:2376`). |
 | Alerts pending with "notifications disabled" | Configure and enable ntfy in Notifications; pending alerts are retried once configured. |
 | Alerts failed with HTTP 401/403 | Wrong ntfy token/credentials or topic permissions. Use Test delivery. |

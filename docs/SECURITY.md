@@ -94,8 +94,10 @@ consequences:
 - DockSentinel itself performs only `GET /_ping`, `GET /version`, `GET /containers/json`,
   `GET /images/json` and `GET /images/{id}/get`. It never starts, stops, restarts, deletes or inspects
   containers, and it does not read container environment variables.
-- Running as non-root with `--group-add <socket GID>` is recommended. Running DockSentinel as root to
-  access the socket widens the blast radius; if that is unavoidable, harden the host and network.
+- Running as non-root with the socket's group is recommended. The entrypoint grants exactly the group
+  that owns the mounted socket at startup and drops root's own group, so no `--group-add` is required
+  for a current image (older images may need the flag). Running DockSentinel as root to access the
+  socket widens the blast radius; if that is unavoidable, harden the host and network.
 - A least-privilege socket proxy is a reasonable hardening step. DockSentinel needs the read-only
   endpoints above; a proxy such as `tecnativa/docker-socket-proxy` configured with `CONTAINERS=1`,
   `IMAGES=1` and `INFO=1` (and everything else disabled) covers them. Verify the proxy version's endpoint
@@ -197,8 +199,8 @@ consequences:
 
 1. Put DockSentinel behind TLS (reverse proxy or private VPN); set `TRUST_PROXY=true` and
    `COOKIE_SECURE=always` when applicable.
-2. Prefer Unix-socket access with a specific socket group, or mutual TLS for remote endpoints. Never
-   expose an unauthenticated Docker TCP API.
+2. Prefer Unix-socket access with a specific socket group (the image grants the owning group
+   automatically), or mutual TLS for remote endpoints. Never expose an unauthenticated Docker TCP API.
 3. Keep the data volume private to the container UID/GID; back it up encrypted.
 4. Use a dedicated ntfy topic and access token; rotate it if exposed.
 5. Keep the image pinned and updated; update the bundled Trivy version deliberately.

@@ -11,7 +11,7 @@
   <Project>https://github.com/Luriot/DockSentinel</Project>
   <License>MIT</License>
   <ExtraSearchTerms>docker vulnerability trivy scanner security cve</ExtraSearchTerms>
-  <Overview>DockSentinel monitors Docker images for known vulnerabilities using Trivy, tracks findings over time and sends deduplicated ntfy alerts. It only reads Docker metadata and never starts, stops or removes containers. The image is published at ghcr.io/luriot/docksentinel. Docker socket access is privileged: prefer TLS remote endpoints when possible. The template already passes --group-add=281 (Unraid's Docker socket group); if your socket uses another GID, adjust Extra Parameters (check it on the host with: stat -c '%g' /var/run/docker.sock).</Overview>
+  <Overview>DockSentinel monitors Docker images for known vulnerabilities using Trivy, tracks findings over time and sends deduplicated ntfy alerts. It only reads Docker metadata and never starts, stops or removes containers. The image is published at ghcr.io/luriot/docksentinel. Docker socket access is privileged: prefer TLS remote endpoints when possible. The image grants itself the GID that owns /var/run/docker.sock at startup, so --group-add is optional; the template still passes 281 (Unraid's usual Docker socket group) for older image tags. Change the host side of the Web UI port if 8080 is taken and keep the container side at 8080.</Overview>
   <Category>Security:Tools</Category>
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Luriot/DockSentinel/main/templates/docksentinel.xml</TemplateURL>
@@ -23,11 +23,11 @@
   <DonateLink/>
   <ReadMe>https://raw.githubusercontent.com/Luriot/DockSentinel/main/README.md</ReadMe>
   <Requires>Docker Engine and a writable appdata folder. Docker socket access is privileged.</Requires>
-  <Changes>Initial Community Applications release.</Changes>
+  <Changes>Detects the Docker socket group at startup, so a missing --group-add no longer breaks discovery. Change the host port in Unraid and apply it once: later container updates keep that saved mapping. Avoid reinstalling the container from this default template when 8080 or Extra Parameters were customised.</Changes>
 
   <Description>DockSentinel monitors Docker images for known vulnerabilities with Trivy, tracks finding lifecycle and prioritisation, and sends optional ntfy alerts. It discovers containers and images across one or more Docker endpoints and never starts, stops or modifies containers. The image is public at ghcr.io/luriot/docksentinel. Docker socket access is privileged; prefer a read-only socket mapping, a socket proxy, or mutual-TLS remote endpoints. First-run setup uses a one-time code printed in the container log. Includes a guided Docker setup, finding triage/export, backups and system status.</Description>
 
-  <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="DockSentinel web interface and API." Type="Port" Display="always" Required="true" Mask="false"/>
+  <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="DockSentinel web interface and API. Change only the host side (left) if 8080 is taken; keep the container side at 8080. Use Docker tab &#8594; Update (not Reinstall) so this saved mapping is kept." Type="Port" Display="always" Required="true" Mask="false"/>
 
   <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/docksentinel" Mode="rw" Description="Persistent database, encryption key and Trivy vulnerability database cache. Back this up." Type="Path" Display="always" Required="true" Mask="false"/>
 

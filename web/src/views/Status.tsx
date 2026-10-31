@@ -104,8 +104,10 @@ export function Status() {
               </div>
             ) : null}
             <p className="tiny dim" style={{ marginTop: 8 }}>
-              Native installs: rerun the Windows installer or <code>npm run native:setup</code>. Docker installs:
-              pull the latest image and recreate the container.
+              Native installs: rerun the Windows installer or <code>npm run native:setup</code>. Container
+              installs: update from your Docker platform so the saved port mapping and extra parameters are
+              kept. On Unraid use <strong>Docker → Update</strong>; do not remove and re-add the container
+              from a default template.
             </p>
           </div>
         </section>

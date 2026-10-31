@@ -85,9 +85,11 @@ docker pull ghcr.io/luriot/docksentinel:latest
 
 The socket is mapped read-only, but Docker access is still **effectively host-root**. Read the
 [Docker security notes](docs/SECURITY.md#docker-socket-access) before deploying on a host that matters.
-If discovery fails with permission denied on Linux/Unraid, add the socket group as a supplementary group
-in Unraid Extra Parameters (`--group-add=<gid>`). Docker Desktop presents a different socket arrangement;
-the native Windows installer detects its named pipe automatically.
+The container grants the group that owns `/var/run/docker.sock` automatically at startup, so a current
+image needs no `--group-add` or `DOCKER_GID`; this also survives recreation from an old Unraid template
+that lacks the parameter. If you pinned an older image and discovery fails with permission denied, add
+`--group-add=<socket-gid>`. Docker Desktop presents a different socket arrangement; the native Windows
+installer detects its named pipe automatically.
 
 ## Run natively (without the DockSentinel container)
 
@@ -216,7 +218,8 @@ the UI and stored in SQLite.
 | `SCAN_CONCURRENCY` | available CPUs (max 8) | Optional hard ceiling for simultaneous scans |
 | `KEV_URL` | CISA feed | Override for a mirror or proxy |
 
-Container permissions: `PUID`/`PGID` control the runtime user; `DOCKER_GID` grants socket access.
+Container permissions: `PUID`/`PGID` control the runtime user; the entrypoint grants the group that owns
+the Docker socket at startup (no `DOCKER_GID` needed for current images).
 
 ## Documentation
 

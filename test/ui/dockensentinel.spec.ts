@@ -248,6 +248,7 @@ test('system status shows storage, hosts and creates a backup', async ({ page })
   await expect(page.getByRole('heading', { name: 'Docker hosts' })).toBeVisible();
   await expect(page.locator('table').filter({ hasText: 'Unraid' })).toContainText('Online');
   await expect(page.locator('table').filter({ hasText: 'Remote Office' })).toContainText('Offline');
+  await expect(page.getByText('Docker → Update')).toBeVisible();
   await page.getByRole('button', { name: 'Create backup' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Backup created' })).toBeVisible();
   await expect(page.locator('table').filter({ hasText: 'docksentinel-' }).first()).toBeVisible();
